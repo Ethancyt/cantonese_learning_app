@@ -4,7 +4,7 @@ Start with `quick-speech-test.txt` for a small upload and fewer audio-generation
 
 ## Test through the website
 
-1. In Developer setup, save and test OpenRouter, Knowlez TTS, and optionally Knowlez STT with their respective keys. A TTS subscription does not automatically provide STT access. Confirm a Cantonese voice with your provider; `af_bella` is the documented Knowlez default, but Cantonese support is not confirmed.
+1. In Developer setup, save and test OpenRouter and Azure Speech. Enter your Azure Speech resource key and matching region in both TTS and STT sections. Select a listed Hong Kong Cantonese voice such as `zh-HK-HiuMaanNeural` and listen to the preview. STT is optional; learners can record and replay without it.
 2. Open Volunteer Studio. In demo mode choose **Enter demo volunteer mode** if prompted. In Supabase mode use a volunteer or admin account.
 3. Choose **Create practice journey**, upload the quick TXT file, and click **Find the learning content**. Check that greetings and student/teacher vocabulary were extracted. With an AI key, the mode should say **AI-assisted**; without one, the structured TXT lines support source-based demo extraction.
 4. Select beginner level, 5 minutes for the quick source (15 for the full source), and include flashcards, matching, listening, sentence order, and speaking. Click **Create practice draft**. Check vocabulary, answers, and module sections against the source.

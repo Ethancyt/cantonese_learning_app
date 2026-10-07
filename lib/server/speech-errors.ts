@@ -1,13 +1,13 @@
 // Never display a provider response body: it may echo credentials or submitted text.
 export function speechRejection(
   status: number,
-  provider: "Azure Speech" | "Voice provider" | "Knowlez",
+  provider: "Azure Speech" | "Voice provider",
   operation: "Lesson audio" | "Speech transcription",
 ) {
   const prefix = `${operation} provider rejected the request: ${provider} HTTP ${status}.`;
   switch (status) {
     case 401:
-      return `${prefix} Authentication failed. ${provider === "Azure Speech" ? "Copy a key from your Azure Speech resource’s Keys and Endpoint page and use that resource’s exact region." : provider === "Knowlez" ? "Use the Knowlez key for this service’s subscription. Microsoft Azure resource keys do not authenticate with Knowlez." : "Check the API key and make sure it belongs to the selected provider."}`;
+      return `${prefix} Authentication failed. ${provider === "Azure Speech" ? "Copy a key from your Azure Speech resource’s Keys and Endpoint page and use that resource’s exact region." : "Check the API key and make sure it belongs to the selected provider."}`;
     case 403:
       return `${prefix} Access was denied. Check resource permissions, subscription status, and network restrictions.`;
     case 400:

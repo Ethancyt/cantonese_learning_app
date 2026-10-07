@@ -15,6 +15,118 @@ import {
   publicConfiguration,
 } from "../lib/server/settings";
 import { provider } from "../lib/ai/provider";
+import { lessonSchema } from "../lib/schema";
+import { seedLessons } from "../lib/seeds";
+
+test("retired speech settings migrate without forwarding old keys or losing existing Azure settings", async (t) => {
+  const root = await mkdtemp(
+    path.join(os.tmpdir(), "cantonese-speech-migration-"),
+  );
+  const previous = process.env.DEVELOPER_DATA_DIR;
+  process.env.DEVELOPER_DATA_DIR = root;
+  t.after(async () => {
+    if (previous === undefined) delete process.env.DEVELOPER_DATA_DIR;
+    else process.env.DEVELOPER_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  });
+  await initializeDeveloper("migration-test-developer-password");
+  const retired = {
+    ...(await readSettings()),
+    aiKey: "migration-ai-canary",
+    serviceKey: "migration-supabase-canary",
+    speechProvider: "knowlez",
+    speechUrl: "https://api-stt.knowlez.com/v1/stt/transcribe",
+    speechKey: "retired-stt-canary",
+    ttsProvider: "knowlez",
+    ttsUrl: "https://api-tts.knowlez.com/v1/tts/synthesise",
+    ttsVoice: "af_bella",
+    ttsKey: "retired-tts-canary",
+    azureRegion: "southeastasia",
+    speechRegion: "southeastasia",
+    azureVoice: "zh-HK-WanLungNeural",
+  };
+  async function legacyVault(settings: Record<string, unknown>) {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv(
+      "aes-256-gcm",
+      await readFile(path.join(root, "developer.key")),
+      iv,
+    );
+    const encrypted = Buffer.concat([
+      cipher.update(
+        JSON.stringify({
+          salt: "test-only",
+          passwordHash: "test-only-unused-hash",
+          settings,
+        }),
+      ),
+      cipher.final(),
+    ]);
+    await writeFile(
+      path.join(root, "developer.enc"),
+      Buffer.concat([iv, cipher.getAuthTag(), encrypted]),
+    );
+  }
+  await legacyVault(retired);
+  let migrated = await readSettings();
+  assert.equal(migrated.speechProvider, "azure");
+  assert.equal(migrated.ttsProvider, "azure");
+  assert.equal(migrated.speechKey, "");
+  assert.equal(migrated.ttsKey, "");
+  assert.equal(migrated.aiKey, retired.aiKey);
+  assert.equal(migrated.serviceKey, retired.serviceKey);
+  assert.equal(migrated.azureRegion, retired.azureRegion);
+  assert.equal(migrated.azureVoice, retired.azureVoice);
+  assert.doesNotMatch(
+    JSON.stringify(redactedSettings(migrated)),
+    /knowlez|af_bella|canary/,
+  );
+  await assert.rejects(() => saveSettings({ ttsProvider: "knowlez" }));
+  await saveSettings({
+    speechKey: "new-azure-stt-canary",
+    ttsKey: "new-azure-tts-canary",
+  });
+  assert.equal((await readSettings()).speechKey, "new-azure-stt-canary");
+  assert.equal((await readSettings()).ttsKey, "new-azure-tts-canary");
+
+  // Stale inactive URLs must not clear keys after a user already selected Azure.
+  await legacyVault({
+    ...retired,
+    speechProvider: "azure",
+    ttsProvider: "azure",
+    speechKey: "new-azure-key",
+    ttsKey: "new-azure-key",
+  });
+  migrated = await readSettings();
+  assert.equal(migrated.speechKey, "new-azure-key");
+  assert.equal(migrated.ttsKey, "new-azure-key");
+  await legacyVault({
+    ...retired,
+    speechProvider: "compatible",
+    ttsProvider: "compatible",
+  });
+  migrated = await readSettings();
+  assert.equal(migrated.speechProvider, "azure");
+  assert.equal(migrated.ttsProvider, "azure");
+  assert.equal(migrated.speechKey, "");
+  assert.equal(migrated.ttsKey, "");
+});
+
+test("previously published audio from a retired provider remains readable", () => {
+  const lesson = structuredClone(seedLessons[0]);
+  lesson.audio = [
+    {
+      id: "a".repeat(64),
+      text: "你好",
+      provider: "knowlez",
+      voice: "legacy-voice",
+      model: "knowlez-tts",
+      createdAt: new Date().toISOString(),
+    },
+  ];
+  assert.equal(lessonSchema.parse(lesson).audio?.[0].provider, "knowlez");
+});
+
 test("browser-managed service settings encrypt secrets, protect sessions, and apply at runtime", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cantonese-settings-"));
   const previous = process.env.DEVELOPER_DATA_DIR;
@@ -191,4 +303,11 @@ test("legacy environment keys retain their provider and models while explicit Az
   process.env.SPEECH_PROVIDER = "azure";
   assert.equal((await readSettings()).aiModel, "openai/gpt-4.1-mini");
   assert.equal((await readSettings()).speechProvider, "azure");
+  delete process.env.SPEECH_PROVIDER;
+  process.env.SPEECH_API_URL = "https://api-stt.knowlez.com/v1/stt/transcribe";
+  process.env.SPEECH_API_KEY = "retired-environment-stt-canary";
+  const migrated = await readSettings();
+  assert.equal(migrated.speechProvider, "azure");
+  assert.equal(migrated.speechKey, "");
+  assert.doesNotMatch(migrated.speechUrl, /knowlez/);
 });

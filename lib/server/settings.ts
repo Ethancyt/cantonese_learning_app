@@ -16,12 +16,12 @@ export const settingsSchema = z
     aiUrl: z.string().url().max(500),
     aiModel: z.string().trim().min(1).max(100),
     aiKey: z.string().max(4000),
-    speechProvider: z.enum(["azure", "compatible", "knowlez"]),
+    speechProvider: z.enum(["azure", "compatible"]),
     speechRegion: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/),
     speechUrl: z.string().url().max(500),
     speechModel: z.string().trim().min(1).max(100),
     speechKey: z.string().max(4000),
-    ttsProvider: z.enum(["disabled", "azure", "compatible", "knowlez"]),
+    ttsProvider: z.enum(["disabled", "azure", "compatible"]),
     ttsUrl: z.string().url().max(500),
     ttsModel: z.string().trim().min(1).max(100),
     ttsVoice: z.string().trim().min(1).max(100),
@@ -178,19 +178,30 @@ export async function validDeveloperSession(token?: string) {
   }
 }
 export async function readSettings(): Promise<Settings> {
-  const stored = (await readVault())?.settings || {};
+  // Read retired provider settings before strict validation. Never route a
+  // retired service's key to Azure; already configured Azure keys are retained.
+  const stored: Record<string, unknown> = { ...(await readVault())?.settings };
+  const retiredEndpoint = (value: unknown) => {
+    if (typeof value !== "string") return false;
+    try {
+      const host = new URL(value).hostname;
+      return host === "knowlez.com" || host.endsWith(".knowlez.com");
+    } catch {
+      return false;
+    }
+  };
   const aiUrl =
     stored.aiUrl ||
     process.env.AI_BASE_URL ||
     (stored.aiKey || process.env.AI_API_KEY
       ? "https://api.openai.com/v1"
       : "https://openrouter.ai/api/v1");
-  return settingsSchema.parse({
+  const settings: Record<string, unknown> = {
     mode: process.env.APP_MODE === "supabase" ? "supabase" : "demo",
     aiUrl,
     aiModel:
       process.env.AI_MODEL ||
-      (new URL(aiUrl).hostname === "openrouter.ai"
+      (new URL(String(aiUrl)).hostname === "openrouter.ai"
         ? "openai/gpt-4.1-mini"
         : "gpt-4o-mini"),
     aiKey: process.env.AI_API_KEY || "",
@@ -223,7 +234,30 @@ export async function readSettings(): Promise<Settings> {
     databaseUrl: process.env.DATABASE_URL || "",
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
     ...stored,
-  });
+  };
+  if (
+    settings.speechProvider === "knowlez" ||
+    (settings.speechProvider !== "azure" && retiredEndpoint(settings.speechUrl))
+  ) {
+    settings.speechProvider = "azure";
+    settings.speechKey = "";
+  }
+  if (
+    settings.ttsProvider === "knowlez" ||
+    (settings.ttsProvider !== "azure" &&
+      settings.ttsProvider !== "disabled" &&
+      retiredEndpoint(settings.ttsUrl))
+  ) {
+    settings.ttsProvider = "azure";
+    settings.ttsKey = "";
+  }
+  if (retiredEndpoint(settings.speechUrl))
+    settings.speechUrl = "https://api.openai.com/v1/audio/transcriptions";
+  if (retiredEndpoint(settings.ttsUrl)) {
+    settings.ttsUrl = "https://api.openai.com/v1/audio/speech";
+    settings.ttsVoice = "alloy";
+  }
+  return settingsSchema.parse(settings);
 }
 export function redactedSettings(settings: Settings) {
   const {

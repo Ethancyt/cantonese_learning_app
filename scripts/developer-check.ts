@@ -65,10 +65,7 @@ async function main() {
     let result: unknown = [];
     if (pathname === "/v1/chat/completions")
       result = { choices: [{ message: { content: '{"connected":true}' } }] };
-    else if (
-      pathname === "/v1/audio/speech" ||
-      pathname === "/v1/tts/synthesise"
-    ) {
+    else if (pathname === "/v1/audio/speech") {
       if (voiceStatus !== 200) {
         res.statusCode = voiceStatus;
         res.end(JSON.stringify({ error: "developer-test-voice-key" }));
@@ -77,10 +74,7 @@ async function main() {
       res.setHeader("Content-Type", "audio/mpeg");
       res.end(audioFixture);
       return;
-    } else if (
-      pathname === "/v1/audio/transcriptions" ||
-      pathname === "/v1/stt/transcribe"
-    )
+    } else if (pathname === "/v1/audio/transcriptions")
       result = { text: recognizedText };
     else if (pathname === "/auth/v1/settings")
       result = { external: { email: true } };
@@ -260,80 +254,7 @@ async function main() {
     expect(presetState.settings.configured.speechKey).toBe(false);
     expect(presetState.settings.configured.ttsKey).toBe(false);
     expect(presetState.settings.configured.serviceKey).toBe(true);
-    await page
-      .getByRole("button", { name: "Use OpenRouter + Knowlez", exact: true })
-      .click();
-    await expect(
-      page.getByLabel("Recognition provider", { exact: true }),
-    ).toHaveValue("knowlez");
-    await expect(page.getByLabel(/^Voice provider/)).toHaveValue("knowlez");
-    await expect(
-      page.getByLabel("Speech API endpoint", { exact: true }),
-    ).toHaveValue("https://api-stt.knowlez.com/v1/stt/transcribe");
-    await expect(
-      page.getByLabel("Voice API endpoint", { exact: true }),
-    ).toHaveValue("https://api-tts.knowlez.com/v1/tts/synthesise");
-    await expect(page.getByLabel("Voice name", { exact: true })).toHaveValue(
-      "af_bella",
-    );
-    await expect(page.getByLabel("Speech model", { exact: true })).toHaveCount(
-      0,
-    );
-    await expect(page.getByLabel("Voice model", { exact: true })).toHaveCount(
-      0,
-    );
-    await page
-      .getByLabel("Speech API endpoint", { exact: true })
-      .fill(service + "/v1/stt/transcribe");
-    await page
-      .getByLabel("Voice API endpoint", { exact: true })
-      .fill(service + "/v1/tts/synthesise");
-    await page.getByLabel(/^Speech API key/).fill("browser-knowlez-stt-canary");
-    await page
-      .getByLabel("Lesson voice API key", { exact: true })
-      .fill("browser-knowlez-tts-canary");
-    await page
-      .getByRole("button", { name: "Save & test speech", exact: true })
-      .click();
-    await expect(page.getByRole("status")).toContainText(
-      "Speech transcription connected",
-    );
-    await page
-      .getByRole("button", { name: "Save & test lesson voice", exact: true })
-      .click();
-    await expect(page.getByRole("status")).toContainText(
-      "Lesson audio connected",
-    );
-    const knowlezTts = calls.find((c) => c.path === "/v1/tts/synthesise")!;
-    expect(knowlezTts.apiKey).toBe("browser-knowlez-tts-canary");
-    expect(knowlezTts.authorization).toBeUndefined();
-    expect(JSON.parse(knowlezTts.body)).toEqual({
-      text: "你好，歡迎學廣東話。",
-      voice: "af_bella",
-      format: "mp3",
-      speed: 0.85,
-      return: "audio",
-    });
-    const knowlezStt = calls.find((c) => c.path === "/v1/stt/transcribe")!;
-    expect(knowlezStt.apiKey).toBe("browser-knowlez-stt-canary");
-    expect(knowlezStt.authorization).toBeUndefined();
-    expect(JSON.parse(knowlezStt.body).filename).toBe("connection-test.wav");
-    await page
-      .getByRole("button", {
-        name: "Use OpenRouter + Azure defaults",
-        exact: true,
-      })
-      .click();
-    await page
-      .getByRole("button", { name: "Save service settings", exact: true })
-      .click();
-    await expect(page.getByRole("status")).toContainText("Settings saved");
-    const switched = await (
-      await context.request.get(base + "/api/developer")
-    ).json();
-    expect(switched.settings.configured.speechKey).toBe(false);
-    expect(switched.settings.configured.ttsKey).toBe(false);
-    expect(switched.settings.configured.serviceKey).toBe(true);
+    await expect(page.getByRole("option", { name: /Knowlez/ })).toHaveCount(0);
     await page
       .getByLabel("AI API base URL", { exact: true })
       .fill(service + "/v1");
@@ -514,9 +435,9 @@ async function main() {
     await developerAction({
       action: "save",
       settings: {
-        speechProvider: "knowlez",
-        speechUrl: service + "/v1/stt/transcribe",
-        speechKey: "browser-knowlez-stt-canary",
+        speechProvider: "compatible",
+        speechUrl: service + "/v1/audio/transcriptions",
+        speechKey: "browser-stt-canary",
       },
     });
     recognizedText = speaking.answer;
@@ -550,14 +471,12 @@ async function main() {
       "The recognized words match",
     );
     const recognitionCall = calls
-      .filter((c) => c.path === "/v1/stt/transcribe")
+      .filter((c) => c.path === "/v1/audio/transcriptions")
       .at(-1)!;
-    expect(recognitionCall.apiKey).toBe("browser-knowlez-stt-canary");
-    const sent = JSON.parse(recognitionCall.body);
-    expect(sent.filename).toBe("practice.wav");
-    const wavBytes = Buffer.from(sent.audio_base64, "base64");
-    expect(wavBytes.toString("ascii", 0, 4)).toBe("RIFF");
-    expect(wavBytes.readUInt32LE(24)).toBe(16000);
+    expect(recognitionCall.authorization).toBe("Bearer browser-stt-canary");
+    expect(recognitionCall.body).toContain('filename="practice.wav"');
+    expect(recognitionCall.body).toContain("RIFF");
+    expect(recognitionCall.body).toContain("WAVE");
     recognizedText = "這是不同的句子";
     await page.getByRole("button", { name: "Check recognized words" }).click();
     await expect(page.locator(".record-note")).toContainText(

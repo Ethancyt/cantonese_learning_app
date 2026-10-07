@@ -38,9 +38,7 @@ export function clipIdentity(text: string, settings: Settings) {
           : settings.ttsVoice,
         settings.ttsProvider === "azure"
           ? "ssml-rate-minus-15"
-          : settings.ttsProvider === "knowlez"
-            ? "knowlez-mp3-speed-0.85"
-            : settings.ttsModel,
+          : settings.ttsModel,
       ]),
     )
     .digest("hex");
@@ -57,7 +55,6 @@ export async function synthesize(
   if (!text.trim() || text.length > 700)
     throw new Error("Lesson audio phrases must contain 1–700 characters.");
   const azure = settings.ttsProvider === "azure";
-  const knowlez = settings.ttsProvider === "knowlez";
   let response: Response;
   try {
     response = await fetch(
@@ -73,37 +70,24 @@ export async function synthesize(
               "User-Agent": "CantoneseLearningApp/1.0",
               "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
             }
-          : knowlez
-            ? {
-                "X-API-Key": settings.ttsKey,
-                "Content-Type": "application/json",
-              }
-            : {
-                Authorization: `Bearer ${settings.ttsKey}`,
-                "Content-Type": "application/json",
-              },
+          : {
+              Authorization: `Bearer ${settings.ttsKey}`,
+              "Content-Type": "application/json",
+            },
         body: azure
           ? `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text)}</prosody></voice></speak>`
-          : knowlez
-            ? JSON.stringify({
-                text,
-                voice: settings.ttsVoice,
-                format: "mp3",
-                speed: 0.85,
-                return: "audio",
-              })
-            : JSON.stringify({
-                model: settings.ttsModel,
-                voice: settings.ttsVoice,
-                input: text,
-                response_format: "mp3",
-                ...(settings.ttsModel.startsWith("gpt-4o")
-                  ? {
-                      instructions:
-                        "Speak naturally in Hong Kong Cantonese. Keep the Cantonese wording; do not translate it into Mandarin.",
-                    }
-                  : {}),
-              }),
+          : JSON.stringify({
+              model: settings.ttsModel,
+              voice: settings.ttsVoice,
+              input: text,
+              response_format: "mp3",
+              ...(settings.ttsModel.startsWith("gpt-4o")
+                ? {
+                    instructions:
+                      "Speak naturally in Hong Kong Cantonese. Keep the Cantonese wording; do not translate it into Mandarin.",
+                  }
+                : {}),
+            }),
         signal: AbortSignal.timeout(25000),
       },
     );
@@ -116,7 +100,7 @@ export async function synthesize(
     throw new Error(
       speechRejection(
         response.status,
-        azure ? "Azure Speech" : knowlez ? "Knowlez" : "Voice provider",
+        azure ? "Azure Speech" : "Voice provider",
         "Lesson audio",
       ),
     );
@@ -224,14 +208,6 @@ export async function generateLessonAudio(
       "Lesson audio needs a voice provider and API key in Developer setup.",
     );
   const texts = lessonAudioTexts(lesson);
-  if (
-    texts.length &&
-    settings.ttsProvider === "knowlez" &&
-    settings.ttsVoice === "af_bella"
-  )
-    throw new Error(
-      "Lesson audio voice af_bella is not verified for Cantonese. Select a provider-supported Cantonese voice in Developer setup and play the preview before generating lesson audio.",
-    );
   if (texts.length > 200 || texts.some((text) => text.length > 700))
     throw new Error(
       "Lesson audio supports up to 200 phrases of 700 characters each. Split this material into smaller lessons.",
@@ -258,17 +234,13 @@ export async function generateLessonAudio(
     const clip: AudioClip = {
       id,
       text,
-      provider: settings.ttsProvider as "azure" | "compatible" | "knowlez",
+      provider: settings.ttsProvider as "azure" | "compatible",
       voice:
         settings.ttsProvider === "azure"
           ? settings.azureVoice
           : settings.ttsVoice,
       model:
-        settings.ttsProvider === "azure"
-          ? "azure-neural"
-          : settings.ttsProvider === "knowlez"
-            ? "knowlez-tts"
-            : settings.ttsModel,
+        settings.ttsProvider === "azure" ? "azure-neural" : settings.ttsModel,
       createdAt: new Date().toISOString(),
     };
     const previous = keep.findIndex((c) => c.text === text);
