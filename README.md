@@ -54,10 +54,10 @@ Analytics display **actual workspace activity**, not fabricated figures. An empt
 
 ## Real AI and speech (optional)
 
-Use **Developer setup** at `/developer` to enter keys, endpoints, and model names. No file editing is needed. The environment variables below remain an optional fallback for advanced hosting; never commit credentials.
+Use **Developer setup** at `/developer` to enter keys, endpoints, and model names. New setups default to **OpenRouter** for lesson AI and **Azure Speech** for Cantonese TTS and STT. Existing saved provider choices are preserved; use **Use OpenRouter + Azure defaults** on that page to switch. The button clears credentials for changed providers when saved, while preserving Supabase settings. No file editing is needed. The environment variables below remain an optional fallback for advanced hosting; never commit credentials.
 
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`: enable source analysis, lesson generation and constrained roleplay through an OpenAI-compatible endpoint. A configured provider failure is shown as an error; it does not silently produce a fake AI result.
-- `SPEECH_API_KEY`, `SPEECH_API_URL`, `SPEECH_MODEL`: enable multipart audio transcription. Audio is sent only when the learner explicitly chooses **Check recognized words**; it is not stored by this app.
+- `SPEECH_API_KEY`, `SPEECH_PROVIDER`, `SPEECH_REGION`: configure Azure Cantonese (`zh-HK`) recognition; choose `compatible` with `SPEECH_API_URL` and `SPEECH_MODEL` for multipart transcription. Audio is sent only when the learner explicitly chooses **Check recognized words**; it is not stored by this app.
 - Listening first plays reviewed, saved lesson audio when available. Otherwise browser listening uses an installed `zh-HK`/`yue` voice. If none exists, the UI tells the learner; it never silently substitutes Mandarin. Device voice availability varies.
 - Optional roleplay voice input uses the browser's speech recognition API and its own browser/provider behavior. Typed and suggested replies always work. Microphone recording needs a secure browser context and permission.
 
@@ -88,13 +88,13 @@ The workflow for every new material is:
 
 Local MP3s live in `.data/audio/`; Supabase mode stores MP3s in a private Storage bucket and clip text, voice/model, creation time and IDs inside versioned lesson JSON. Published snapshots retain their original clips. Saving edited text removes mismatched draft references; browser-submitted audio references cannot replace server-generated metadata. Students can access only clips referenced by available published lessons; owned drafts are limited to staff. Files are never overwritten. Keep `.data` backed up in local mode and retain referenced Storage objects in connected mode.
 
-This generates the **example voice learners hear**. Microphone transcription still uses the separate speech-recognition setup. Transcript matching does not grade Cantonese tones or phonetic pronunciation. Generation requires your provider credentials; no live voice provider or Supabase project is configured by this repository alone.
+This generates the **example voice learners hear**. Microphone transcription uses **Speech-to-text (STT)**, with Azure Cantonese recognition selected by default. Browser recordings are converted locally into mono 16 kHz PCM WAV before an explicit word-check request; the original recording stays on the device. Transcript matching does not grade Cantonese tones or phonetic pronunciation. Generation requires your provider credentials; no live voice provider or Supabase project is configured by this repository alone.
 
 ## Browser-based developer setup
 
 1. Start with `npm run dev` (or `npm run build` then `npm start`) and open `/developer`.
 2. Create a developer password of at least 12 characters. This account is separate from student/volunteer roles.
-3. Enter optional AI and speech keys, URLs, and model names. **Save & test** checks a real provider request, which may incur a small provider charge.
+3. Under **AI lesson generation**, paste your OpenRouter key (default URL `https://openrouter.ai/api/v1`, model `openai/gpt-4.1-mini`). Under **Text-to-speech (TTS)**, paste your Azure Speech key into **Lesson voice API key**, select a Cantonese voice, and enter the resource region. Under **Speech-to-text (STT)**, paste that Azure key into **Speech API key** and enter its region again. Both Azure sections can use one Speech resource; OpenRouter is separate. The Azure selections call Microsoft’s regional Speech endpoints directly; no speech URL entry is needed. Knowlez-hosted custom URLs are not connected by the Azure selection and require their own documented API adapter. Compatible providers remain available. **Save & test** checks a real provider request, which may incur a small provider charge.
 4. For Supabase, open its dashboard from the page and create or select a project. Paste the project URL, public/publishable key, session-pooler PostgreSQL URI with database password, and secret/service-role key into the corresponding fields. Secret keys stay server-side; only the public key reaches the learner sign-in client.
 5. Click **Initialize learning database** to install tables, RLS policies, and the four module seeds. The app detects an existing installation and preserves published history and learner records. No SQL copying is required.
 6. Create test student, volunteer, and administrator accounts using the page. Accounts are immediately enabled for workshop use and role assignment is performed on the server.

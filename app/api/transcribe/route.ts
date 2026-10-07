@@ -1,3 +1,4 @@
+import { transcribeAudio } from "@/lib/server/speech";
 import { readSettings } from "@/lib/server/settings";
 import { NextRequest, NextResponse } from "next/server";
 import { identity, guard, failure } from "@/lib/server/security";
@@ -42,27 +43,12 @@ export async function POST(req: NextRequest) {
       !/^audio\/(webm|mp4|ogg|wav)/.test(file.type)
     )
       throw new Error("Invalid recording.");
-    const upload = new FormData();
-    upload.set("file", file);
-    upload.set("model", settings.speechModel);
-    upload.set("language", "zh");
-    const response = await fetch(settings.speechUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${settings.speechKey}` },
-      body: upload,
-      signal: AbortSignal.timeout(60000),
-    });
-    if (!response.ok) throw new Error("Transcription provider failed.");
-    const result = await response.json();
+    const text = await transcribeAudio(file, settings);
     return NextResponse.json({
       available: true,
-      ...speakingFeedback(e.answer, ztext(result.text)),
+      ...speakingFeedback(e.answer, text),
     });
   } catch (e) {
     return failure(e);
   }
-}
-function ztext(t: unknown) {
-  if (typeof t !== "string") throw new Error("Invalid transcription response.");
-  return t.slice(0, 2000);
 }

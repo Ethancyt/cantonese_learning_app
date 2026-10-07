@@ -97,11 +97,16 @@ async function main() {
   const service = "http://127.0.0.1:" + address.port;
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
-    args: ["--no-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+    ],
   });
   try {
     const context = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
+      permissions: ["microphone"],
     });
     const page = await context.newPage();
     page.setDefaultTimeout(20000);
@@ -139,6 +144,9 @@ async function main() {
       .fill(service + "/v1");
     await page.getByLabel("AI model", { exact: true }).fill("test-model");
     await page.getByLabel(/^AI API key/).fill("developer-test-ai-key");
+    await page
+      .getByLabel("Recognition provider", { exact: true })
+      .selectOption("compatible");
     await page
       .getByLabel("Speech API endpoint", { exact: true })
       .fill(service + "/v1/audio/transcriptions");
@@ -181,6 +189,55 @@ async function main() {
     expect(
       calls.find((c) => c.path === "/v1/audio/transcriptions")?.authorization,
     ).toBe("Bearer developer-test-speech-key");
+    await page
+      .getByRole("button", { name: "Use OpenRouter + Azure defaults" })
+      .click();
+    await expect(
+      page.getByLabel("AI API base URL", { exact: true }),
+    ).toHaveValue("https://openrouter.ai/api/v1");
+    await expect(page.getByLabel("AI model", { exact: true })).toHaveValue(
+      "openai/gpt-4.1-mini",
+    );
+    await expect(
+      page.getByLabel("Recognition provider", { exact: true }),
+    ).toHaveValue("azure");
+    await expect(page.getByLabel(/^Voice provider/)).toHaveValue("azure");
+    await expect(
+      page.getByLabel("Azure recognition region", { exact: true }),
+    ).toHaveValue("eastasia");
+    await expect(page.getByLabel(/^Azure Speech region/)).toHaveValue(
+      "eastasia",
+    );
+    await page.getByRole("button", { name: "Save service settings" }).click();
+    await expect(page.getByRole("status")).toContainText("Settings saved");
+    const presetState = await (
+      await context.request.get(base + "/api/developer")
+    ).json();
+    expect(presetState.settings.configured.aiKey).toBe(false);
+    expect(presetState.settings.configured.speechKey).toBe(false);
+    expect(presetState.settings.configured.ttsKey).toBe(false);
+    expect(presetState.settings.configured.serviceKey).toBe(true);
+    await page
+      .getByLabel("AI API base URL", { exact: true })
+      .fill(service + "/v1");
+    await page.getByLabel("AI model", { exact: true }).fill("test-model");
+    await page.getByLabel(/^AI API key/).fill("developer-test-ai-key");
+    await page
+      .getByLabel("Recognition provider", { exact: true })
+      .selectOption("compatible");
+    await page
+      .getByLabel("Speech API endpoint", { exact: true })
+      .fill(service + "/v1/audio/transcriptions");
+    await page.getByLabel(/^Speech API key/).fill("developer-test-speech-key");
+    await page.getByLabel(/^Voice provider/).selectOption("compatible");
+    await page
+      .getByLabel("Voice API endpoint", { exact: true })
+      .fill(service + "/v1/audio/speech");
+    await page
+      .getByLabel("Lesson voice API key", { exact: true })
+      .fill("developer-test-voice-key");
+    await page.getByRole("button", { name: "Save service settings" }).click();
+    await expect(page.getByRole("status")).toContainText("Settings saved");
     await page.getByLabel("Account email", { exact: true }).fill(user.email);
     await page
       .getByLabel("Account password", { exact: true })
@@ -336,6 +393,30 @@ async function main() {
     expect(studentAudio.ok()).toBe(true);
     expect(studentAudio.headers()["content-type"]).toBe("audio/mpeg");
     expect(await studentAudio.body()).toEqual(audioFixture);
+    const speaking = savedLesson.exercises.find((e: any) => e.type === "speak");
+    const sectionIndex = savedLesson.module.sections.findIndex((s: any) =>
+      s.exerciseIds.includes(speaking.id),
+    );
+    await page.goto(base + "/journey/" + savedLesson.id);
+    await page.locator(".module-path-section button").nth(sectionIndex).click();
+    await page.getByRole("button", { name: "Continue to practice" }).click();
+    await page.getByRole("button", { name: "Start recording" }).click();
+    await expect(
+      page.getByRole("button", { name: "Stop recording" }),
+    ).toBeVisible();
+    await page.waitForTimeout(700);
+    await page.getByRole("button", { name: "Stop recording" }).click();
+    await expect(page.locator("audio")).toBeVisible();
+    await page.getByRole("button", { name: "Check recognized words" }).click();
+    await expect(page.locator(".record-note")).toContainText(
+      "Recognized: 你好",
+    );
+    const recognitionCall = calls
+      .filter((c) => c.path === "/v1/audio/transcriptions")
+      .at(-1)!;
+    expect(recognitionCall.body).toContain('filename="practice.wav"');
+    expect(recognitionCall.body).toContain("audio/wav");
+
     expect(
       (await studioAction({ action: "revise", lessonId: savedLesson.id }))
         .lesson.version,

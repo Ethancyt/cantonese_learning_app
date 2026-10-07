@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Check,
 } from "lucide-react";
+import { recordingToWav } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
 import { useApp } from "./app-provider";
@@ -407,15 +408,9 @@ function Speaking({
     if (!blob) return;
     setBusy(true);
     try {
+      const wav = await recordingToWav(blob);
       const form = new FormData();
-      form.set(
-        "audio",
-        new File(
-          [blob],
-          `practice.${blob.type.includes("mp4") ? "mp4" : "webm"}`,
-          { type: blob.type },
-        ),
-      );
+      form.set("audio", new File([wav], "practice.wav", { type: "audio/wav" }));
       form.set("lessonId", lesson.id);
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);

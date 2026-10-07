@@ -99,6 +99,26 @@ export function DeveloperSetup() {
     if (secrets.includes(name as Secret))
       setRemoved((r) => r.filter((k) => k !== name));
   }
+  function recommendedProviders() {
+    if (!form) return;
+    const clear: Secret[] = [];
+    if (form.aiUrl.replace(/\/$/, "") !== "https://openrouter.ai/api/v1")
+      clear.push("aiKey");
+    if (form.speechProvider !== "azure") clear.push("speechKey");
+    if (form.ttsProvider !== "azure") clear.push("ttsKey");
+    setForm({
+      ...form,
+      aiUrl: "https://openrouter.ai/api/v1",
+      aiModel: "openai/gpt-4.1-mini",
+      speechProvider: "azure",
+      ttsProvider: "azure",
+      ...Object.fromEntries(clear.map((key) => [key, ""])),
+    });
+    setRemoved((r) => [...new Set([...r, ...clear])]);
+    setNote(
+      "OpenRouter and Azure selected. Paste the matching provider keys below, then save. Keys for changed providers will be removed.",
+    );
+  }
   async function save() {
     if (!form) return;
     const payload: Record<string, unknown> = { ...form };
@@ -311,6 +331,31 @@ export function DeveloperSetup() {
                 </select>
               </label>
             </section>
+            <section className="panel setup-card">
+              <h2>OpenRouter + Azure Speech</h2>
+              <p>
+                OpenRouter generates lesson text. Azure text-to-speech (TTS)
+                creates Listen clips; Azure speech-to-text (STT) recognizes
+                learners’ recordings. Paste the same Azure Speech resource key
+                in both speech key fields and use that resource’s actual region.
+                The Azure selections connect directly to Microsoft. No endpoint
+                URLs are needed.
+              </p>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy}
+                onClick={recommendedProviders}
+              >
+                Use OpenRouter + Azure defaults
+              </button>
+              <p className="setup-field-help">
+                Use this button to update an existing setup. Review the fields
+                and save; credentials for a changed provider are cleared to
+                avoid sending its old key to another service. Supabase settings
+                are preserved.
+              </p>
+            </section>
             <div className="setup-grid">
               <section className="panel setup-card">
                 <div className="setup-card-heading">
@@ -343,7 +388,7 @@ export function DeveloperSetup() {
                 {secret(
                   "aiKey",
                   "AI API key",
-                  "Use the key from your OpenAI-compatible provider.",
+                  "OpenRouter is the default. Paste its API key here, or the key for the compatible provider URL you choose.",
                 )}
                 <button
                   type="button"
@@ -358,33 +403,65 @@ export function DeveloperSetup() {
                 <div className="setup-card-heading">
                   <KeyRound size={23} />
                   <div>
-                    <h2>Speech transcription</h2>
+                    <h2>Speech-to-text (STT)</h2>
                     <p>
                       Optional · learners can record and replay without a key.
                     </p>
                   </div>
                 </div>
                 <label className="field">
-                  Speech API endpoint
-                  <input
-                    type="url"
-                    required
-                    value={form.speechUrl}
-                    onChange={(e) => field("speechUrl", e.target.value)}
-                  />
+                  Recognition provider
+                  <select
+                    aria-label="Recognition provider"
+                    value={form.speechProvider}
+                    onChange={(e) => field("speechProvider", e.target.value)}
+                  >
+                    <option value="azure">
+                      Azure Speech · Hong Kong Cantonese
+                    </option>
+                    <option value="compatible">
+                      OpenAI-compatible transcription
+                    </option>
+                  </select>
                 </label>
-                <label className="field">
-                  Speech model
-                  <input
-                    required
-                    value={form.speechModel}
-                    onChange={(e) => field("speechModel", e.target.value)}
-                  />
-                </label>
+                {form.speechProvider === "azure" ? (
+                  <label className="field">
+                    Azure recognition region
+                    <input
+                      aria-label="Azure recognition region"
+                      value={form.speechRegion}
+                      onChange={(e) => field("speechRegion", e.target.value)}
+                    />
+                    <span className="setup-field-help">
+                      Use the region from your Azure Speech resource. Cantonese
+                      recognition uses zh-HK.
+                    </span>
+                  </label>
+                ) : (
+                  <>
+                    <label className="field">
+                      Speech API endpoint
+                      <input
+                        type="url"
+                        required
+                        value={form.speechUrl}
+                        onChange={(e) => field("speechUrl", e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      Speech model
+                      <input
+                        required
+                        value={form.speechModel}
+                        onChange={(e) => field("speechModel", e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
                 {secret(
                   "speechKey",
                   "Speech API key",
-                  "You can use the same provider key if it supports transcription.",
+                  "Paste your Azure Speech resource key here for recognizing spoken words. With a compatible provider selected, use that provider’s transcription key.",
                 )}
                 <button
                   type="button"
@@ -400,7 +477,7 @@ export function DeveloperSetup() {
               <div className="setup-card-heading">
                 <KeyRound size={23} />
                 <div>
-                  <h2>Saved Cantonese lesson audio</h2>
+                  <h2>Text-to-speech (TTS)</h2>
                   <p>
                     Generate once in the Studio and replay without another AI
                     request. Azure provides dedicated Hong Kong Cantonese
@@ -485,7 +562,7 @@ export function DeveloperSetup() {
               {secret(
                 "ttsKey",
                 "Lesson voice API key",
-                "Azure Speech resource key, or your compatible speech-generation provider key.",
+                "Paste your Azure Speech resource key here for generating Listen clips. You can use the same Azure key as STT. Compatible voice providers use their own key.",
               )}
               <button
                 type="button"
@@ -521,6 +598,7 @@ export function DeveloperSetup() {
                   Open Supabase <ExternalLink size={14} />
                 </a>
               </div>
+
               <div className="setup-grid">
                 <div>
                   <label className="field">

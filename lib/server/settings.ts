@@ -16,6 +16,8 @@ export const settingsSchema = z
     aiUrl: z.string().url().max(500),
     aiModel: z.string().trim().min(1).max(100),
     aiKey: z.string().max(4000),
+    speechProvider: z.enum(["azure", "compatible"]),
+    speechRegion: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/),
     speechUrl: z.string().url().max(500),
     speechModel: z.string().trim().min(1).max(100),
     speechKey: z.string().max(4000),
@@ -177,17 +179,39 @@ export async function validDeveloperSession(token?: string) {
 }
 export async function readSettings(): Promise<Settings> {
   const stored = (await readVault())?.settings || {};
+  const aiUrl =
+    stored.aiUrl ||
+    process.env.AI_BASE_URL ||
+    (stored.aiKey || process.env.AI_API_KEY
+      ? "https://api.openai.com/v1"
+      : "https://openrouter.ai/api/v1");
   return settingsSchema.parse({
     mode: process.env.APP_MODE === "supabase" ? "supabase" : "demo",
-    aiUrl: process.env.AI_BASE_URL || "https://api.openai.com/v1",
-    aiModel: process.env.AI_MODEL || "gpt-4o-mini",
+    aiUrl,
+    aiModel:
+      process.env.AI_MODEL ||
+      (new URL(aiUrl).hostname === "openrouter.ai"
+        ? "openai/gpt-4.1-mini"
+        : "gpt-4o-mini"),
     aiKey: process.env.AI_API_KEY || "",
+    speechProvider:
+      process.env.SPEECH_PROVIDER === "azure"
+        ? "azure"
+        : process.env.SPEECH_PROVIDER === "compatible" ||
+            (!stored.speechProvider &&
+              (stored.speechUrl ||
+                stored.speechKey ||
+                process.env.SPEECH_API_URL ||
+                process.env.SPEECH_API_KEY))
+          ? "compatible"
+          : "azure",
+    speechRegion: process.env.SPEECH_REGION || "eastasia",
     speechUrl:
       process.env.SPEECH_API_URL ||
       "https://api.openai.com/v1/audio/transcriptions",
     speechModel: process.env.SPEECH_MODEL || "whisper-1",
     speechKey: process.env.SPEECH_API_KEY || "",
-    ttsProvider: "disabled",
+    ttsProvider: "azure",
     ttsUrl: "https://api.openai.com/v1/audio/speech",
     ttsModel: "gpt-4o-mini-tts",
     ttsVoice: "alloy",

@@ -4,6 +4,7 @@ import { Client } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { Settings } from "./settings";
 import { CompatibleProvider } from "../ai/provider";
+import { transcribeAudio } from "./speech";
 import { synthesize } from "./lesson-audio";
 import { curriculumSQL } from "../../scripts/seed-supabase";
 
@@ -60,37 +61,23 @@ export async function testService(
   if (service === "speech") {
     if (!settings.speechKey) throw new Error("Add a speech API key first.");
     // A short silent WAV verifies authentication and the transcription endpoint without learner audio.
-    const wav = Buffer.alloc(44 + 16000);
+    const wav = Buffer.alloc(44 + 32000);
     wav.write("RIFF");
     wav.writeUInt32LE(wav.length - 8, 4);
     wav.write("WAVEfmt ", 8);
     wav.writeUInt32LE(16, 16);
     wav.writeUInt16LE(1, 20);
     wav.writeUInt16LE(1, 22);
-    wav.writeUInt32LE(8000, 24);
-    wav.writeUInt32LE(16000, 28);
+    wav.writeUInt32LE(16000, 24);
+    wav.writeUInt32LE(32000, 28);
     wav.writeUInt16LE(2, 32);
     wav.writeUInt16LE(16, 34);
     wav.write("data", 36);
-    wav.writeUInt32LE(16000, 40);
-    const body = new FormData();
-    body.set(
-      "file",
-      new Blob([wav], { type: "audio/wav" }),
-      "connection-test.wav",
+    wav.writeUInt32LE(32000, 40);
+    await transcribeAudio(
+      new File([wav], "connection-test.wav", { type: "audio/wav" }),
+      settings,
     );
-    body.set("model", settings.speechModel);
-    body.set("language", "zh");
-    const response = await fetch(settings.speechUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${settings.speechKey}` },
-      body,
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!response.ok || typeof (await response.json()).text !== "string")
-      throw new Error(
-        "Speech connection test failed. Check the key, model, and endpoint.",
-      );
     return "Speech transcription connected. The test used one second of silence.";
   }
   if (service === "supabase") {

@@ -69,7 +69,7 @@ export function failure(e: unknown) {
   const message = e instanceof Error ? e.message : "Something went wrong.";
   console.error("Request failed:", message.slice(0, 300));
   const safe =
-    /Lesson audio|Sign in|Volunteer access|Cross-site|Too many|Set APP_MODE|Demo generation supports|Demo extraction needs|Files must|Use PDF|No readable text|Please split|Vocabulary is not grounded|Approve this draft|Finish each activity|File is too large|Document expands|Invalid PDF|Invalid document|This lesson is unavailable/.test(
+    /Speech transcription|Lesson audio|Sign in|Volunteer access|Cross-site|Too many|Set APP_MODE|Demo generation supports|Demo extraction needs|Files must|Use PDF|No readable text|Please split|Vocabulary is not grounded|Approve this draft|Finish each activity|File is too large|Document expands|Invalid PDF|Invalid document|This lesson is unavailable/.test(
       message,
     )
       ? message
