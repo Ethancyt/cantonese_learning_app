@@ -102,7 +102,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <span />
             {data?.mode === "supabase" ? "Connected account" : "FYP demo space"}
           </div>
-          <button className="mode-button" onClick={change}>
+          <button className="mode-button" onClick={change} disabled={!data}>
             {studio ? "Back to student" : "Switch to volunteer"}
             <ArrowUpRight size={16} />
           </button>

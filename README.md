@@ -58,7 +58,7 @@ Use **Developer setup** at `/developer` to enter keys, endpoints, and model name
 
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`: enable source analysis, lesson generation and constrained roleplay through an OpenAI-compatible endpoint. A configured provider failure is shown as an error; it does not silently produce a fake AI result.
 - `SPEECH_API_KEY`, `SPEECH_API_URL`, `SPEECH_MODEL`: enable multipart audio transcription. Audio is sent only when the learner explicitly chooses **Check recognized words**; it is not stored by this app.
-- Browser listening uses an installed `zh-HK`/`yue` voice. If none exists, the UI tells the learner; it never silently substitutes Mandarin. Device voice availability varies.
+- Listening first plays reviewed, saved lesson audio when available. Otherwise browser listening uses an installed `zh-HK`/`yue` voice. If none exists, the UI tells the learner; it never silently substitutes Mandarin. Device voice availability varies.
 - Optional roleplay voice input uses the browser's speech recognition API and its own browser/provider behavior. Typed and suggested replies always work. Microphone recording needs a secure browser context and permission.
 
 Demo extraction understands lines like:
@@ -72,6 +72,23 @@ Culture: Wave goodbye when the workshop ends.
 ```
 
 Unstructured materials require the connected AI provider. Demo generation uses source-based **beginner templates**, and is explicitly labelled. Intermediate/advanced demo generation is disabled. Volunteers must verify Cantonese, Jyutping, pedagogical quality, source permissions and age suitability even when connected AI is used.
+
+## Generate and reuse lesson audio
+
+In **Developer setup**, choose **Azure Speech · Hong Kong Cantonese**, enter your Speech resource key and its region, and choose a Hong Kong voice (HiuMaan, HiuGaai, or WanLung). Alternatively configure an OpenAI-compatible `/audio/speech` endpoint, model, voice and key. Cantonese quality depends on that model: listen for unwanted Mandarin readings. OpenRouter chat generation remains separate from voice generation and learner transcription. **Save & test lesson voice** makes one short provider request; it does not assess linguistic quality.
+
+For connected accounts, run **Initialize learning database** once more to add the private `lesson-audio` Storage bucket and permissions. The button preserves existing content and history. Existing projects can also apply migration `003_lesson_audio.sql` through their deployment tooling.
+
+The workflow for every new material is:
+
+1. Upload or paste material, generate a draft, and review Cantonese/Jyutping and lesson structure.
+2. In the draft editor, choose **Generate lesson audio**. The app saves the draft, generates unique Cantonese words, example sentences, dialogue lines and listening/speaking prompts in resumable batches, and shows progress. Provider quotas/charges apply.
+3. Listen to the saved clips in Studio; correct the wording and regenerate if needed. Matching unchanged clips are reused. Changing the voice/model and generating again creates new clips.
+4. Approve and publish. Learners' Listen buttons reuse stored MP3s without calling the voice provider. Newly uploaded material follows the same workflow.
+
+Local MP3s live in `.data/audio/`; Supabase mode stores MP3s in a private Storage bucket and clip text, voice/model, creation time and IDs inside versioned lesson JSON. Published snapshots retain their original clips. Saving edited text removes mismatched draft references; browser-submitted audio references cannot replace server-generated metadata. Students can access only clips referenced by available published lessons; owned drafts are limited to staff. Files are never overwritten. Keep `.data` backed up in local mode and retain referenced Storage objects in connected mode.
+
+This generates the **example voice learners hear**. Microphone transcription still uses the separate speech-recognition setup. Transcript matching does not grade Cantonese tones or phonetic pronunciation. Generation requires your provider credentials; no live voice provider or Supabase project is configured by this repository alone.
 
 ## Browser-based developer setup
 

@@ -36,6 +36,7 @@ test("browser-managed service settings encrypt secrets, protect sessions, and ap
   const saved = await saveSettings({
     aiKey: canary,
     speechKey: "private-speech",
+    ttsKey: "private-voice",
     serviceKey: "private-service",
     aiModel: "custom-model",
   });
@@ -99,6 +100,7 @@ test("browser-managed service settings encrypt secrets, protect sessions, and ap
     mode: "demo",
     aiKey: null,
     speechKey: null,
+    ttsKey: null,
     serviceKey: null,
   });
   assert.equal(await provider(), null);

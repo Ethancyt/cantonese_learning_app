@@ -12,7 +12,12 @@ import {
 import { useApp } from "./app-provider";
 import type { Settings as ServiceSettings } from "@/lib/server/settings";
 type Secret =
-  "aiKey" | "speechKey" | "supabaseKey" | "databaseUrl" | "serviceKey";
+  | "aiKey"
+  | "speechKey"
+  | "ttsKey"
+  | "supabaseKey"
+  | "databaseUrl"
+  | "serviceKey";
 type SafeSettings = Omit<ServiceSettings, Secret> & {
   configured: Record<Secret, boolean>;
 };
@@ -25,6 +30,7 @@ type State = {
 const secrets: Secret[] = [
   "aiKey",
   "speechKey",
+  "ttsKey",
   "supabaseKey",
   "databaseUrl",
   "serviceKey",
@@ -65,6 +71,7 @@ export function DeveloperSetup() {
         ...result.settings,
         aiKey: "",
         speechKey: "",
+        ttsKey: "",
         supabaseKey: "",
         databaseUrl: "",
         serviceKey: "",
@@ -389,6 +396,112 @@ export function DeveloperSetup() {
                 </button>
               </section>
             </div>
+            <section className="panel setup-card">
+              <div className="setup-card-heading">
+                <KeyRound size={23} />
+                <div>
+                  <h2>Saved Cantonese lesson audio</h2>
+                  <p>
+                    Generate once in the Studio and replay without another AI
+                    request. Azure provides dedicated Hong Kong Cantonese
+                    voices.
+                  </p>
+                </div>
+              </div>
+              <label className="field">
+                Voice provider
+                <select
+                  value={form.ttsProvider}
+                  onChange={(e) => field("ttsProvider", e.target.value)}
+                >
+                  <option value="disabled">Device voices only</option>
+                  <option value="azure">
+                    Azure Speech · Hong Kong Cantonese
+                  </option>
+                  <option value="compatible">
+                    OpenAI-compatible speech generation
+                  </option>
+                </select>
+              </label>
+              {form.ttsProvider === "azure" && (
+                <div className="form-grid">
+                  <label className="field">
+                    Azure Speech region
+                    <input
+                      value={form.azureRegion}
+                      onChange={(e) => field("azureRegion", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Cantonese voice
+                    <select
+                      value={form.azureVoice}
+                      onChange={(e) => field("azureVoice", e.target.value)}
+                    >
+                      <option value="zh-HK-HiuMaanNeural">
+                        HiuMaan · female
+                      </option>
+                      <option value="zh-HK-HiuGaaiNeural">
+                        HiuGaai · female
+                      </option>
+                      <option value="zh-HK-WanLungNeural">
+                        WanLung · male
+                      </option>
+                    </select>
+                  </label>
+                </div>
+              )}
+              {form.ttsProvider === "compatible" && (
+                <div className="form-grid">
+                  <label className="field">
+                    Voice API endpoint
+                    <input
+                      type="url"
+                      value={form.ttsUrl}
+                      onChange={(e) => field("ttsUrl", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Voice model
+                    <input
+                      value={form.ttsModel}
+                      onChange={(e) => field("ttsModel", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Voice name
+                    <input
+                      value={form.ttsVoice}
+                      onChange={(e) => field("ttsVoice", e.target.value)}
+                    />
+                  </label>
+                  <p>
+                    Choose a model that supports Cantonese and preview every
+                    clip. OpenRouter chat settings are separate from this speech
+                    endpoint.
+                  </p>
+                </div>
+              )}
+              {secret(
+                "ttsKey",
+                "Lesson voice API key",
+                "Azure Speech resource key, or your compatible speech-generation provider key.",
+              )}
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy || form.ttsProvider === "disabled"}
+                onClick={() => test("tts")}
+              >
+                Save & test lesson voice
+              </button>
+              <p className="setup-field-help">
+                Provider charges or free-tier limits apply when generating.
+                Local clips stay on this computer; connected mode uses private
+                Supabase Storage. Run Initialize database to add audio storage
+                to an existing project.
+              </p>
+            </section>
             <section className="panel setup-card">
               <div className="setup-card-heading">
                 <span className="setup-number">2</span>

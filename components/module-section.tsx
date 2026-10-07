@@ -33,7 +33,7 @@ export function ModuleTeaching({
                 <span className="eyebrow">{line.speaker}</span>
                 <div className="dialogue-phrase">
                   <strong>{line.traditional}</strong>
-                  <ListenButton text={line.traditional} />
+                  <ListenButton lesson={lesson} text={line.traditional} />
                 </div>
                 <span className="jyutping">{line.jyutping}</span>
                 <p>{line.english}</p>
@@ -46,7 +46,10 @@ export function ModuleTeaching({
         <summary>Useful phrases in sentences</summary>
         {section.examples.map((e, i) => (
           <div className="dialogue-line" key={i}>
-            <strong>{e.traditional}</strong>
+            <div className="dialogue-phrase">
+              <strong>{e.traditional}</strong>
+              <ListenButton lesson={lesson} text={e.traditional} />
+            </div>
             <p className="jyutping">{e.jyutping}</p>
             <p>{e.english}</p>
           </div>

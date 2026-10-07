@@ -6,6 +6,10 @@ async function main() {
     "supabase/migrations/002_learning_modules.sql",
     "utf8",
   );
+  const audio = await readFile(
+    "supabase/migrations/003_lesson_audio.sql",
+    "utf8",
+  );
   await writeFile(
     "supabase/setup-new-project.sql",
     "-- FOR A NEW EMPTY PROJECT ONLY.\n" +
@@ -13,12 +17,16 @@ async function main() {
       "\n" +
       modules +
       "\n" +
+      audio +
+      "\n" +
       curriculumSQL(),
   );
   await writeFile(
     "supabase/upgrade-existing-project.sql",
     "-- FOR A PROJECT WITH schema.sql ALREADY APPLIED.\n" +
       modules +
+      "\n" +
+      audio +
       "\n" +
       curriculumSQL(),
   );

@@ -19,6 +19,13 @@ export const settingsSchema = z
     speechUrl: z.string().url().max(500),
     speechModel: z.string().trim().min(1).max(100),
     speechKey: z.string().max(4000),
+    ttsProvider: z.enum(["disabled", "azure", "compatible"]),
+    ttsUrl: z.string().url().max(500),
+    ttsModel: z.string().trim().min(1).max(100),
+    ttsVoice: z.string().trim().min(1).max(100),
+    ttsKey: z.string().max(4000),
+    azureRegion: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/),
+    azureVoice: z.string().regex(/^zh-HK-[A-Za-z]+Neural$/),
     supabaseUrl: z.union([z.literal(""), z.string().url().max(500)]),
     supabaseKey: z.string().max(4000),
     databaseUrl: z.string().max(4000),
@@ -29,6 +36,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const secretFields = [
   "aiKey",
   "speechKey",
+  "ttsKey",
   "supabaseKey",
   "databaseUrl",
   "serviceKey",
@@ -179,6 +187,13 @@ export async function readSettings(): Promise<Settings> {
       "https://api.openai.com/v1/audio/transcriptions",
     speechModel: process.env.SPEECH_MODEL || "whisper-1",
     speechKey: process.env.SPEECH_API_KEY || "",
+    ttsProvider: "disabled",
+    ttsUrl: "https://api.openai.com/v1/audio/speech",
+    ttsModel: "gpt-4o-mini-tts",
+    ttsVoice: "alloy",
+    ttsKey: "",
+    azureRegion: "eastasia",
+    azureVoice: "zh-HK-HiuMaanNeural",
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
     databaseUrl: process.env.DATABASE_URL || "",
@@ -190,6 +205,7 @@ export function redactedSettings(settings: Settings) {
   const {
     aiKey,
     speechKey,
+    ttsKey,
     supabaseKey,
     databaseUrl,
     serviceKey,
@@ -200,6 +216,7 @@ export function redactedSettings(settings: Settings) {
     configured: {
       aiKey: !!aiKey,
       speechKey: !!speechKey,
+      ttsKey: !!ttsKey,
       supabaseKey: !!supabaseKey,
       databaseUrl: !!databaseUrl,
       serviceKey: !!serviceKey,
@@ -210,6 +227,7 @@ export function validateEndpoints(settings: Settings) {
   for (const value of [
     settings.aiUrl,
     settings.speechUrl,
+    settings.ttsUrl,
     settings.supabaseUrl,
   ].filter(Boolean)) {
     const url = new URL(value);

@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useApp, DataBoundary } from "./app-provider";
 import { Harbour, JourneyArt } from "./illustrations";
-import { useState } from "react";
+import type { Lesson } from "@/lib/schema";
+import { useState, useEffect, useRef } from "react";
 export function Dashboard() {
   const { data } = useApp();
   const [filter, setFilter] = useState("All journeys");
@@ -282,14 +283,89 @@ export function Dashboard() {
     </DataBoundary>
   );
 }
-export function ListenButton({ text }: { text: string }) {
-  const [note, setNote] = useState("");
+let activeAudio: HTMLAudioElement | null = null;
+export function ListenButton({
+  text,
+  lesson,
+}: {
+  text: string;
+  lesson?: Lesson;
+}) {
+  const { data, auth } = useApp();
+  const source =
+    lesson ||
+    data?.lessons.find((l) => l.audio?.some((c) => c.text === text.trim()));
+  const clip = source?.audio?.find((c) => c.text === text.trim());
+  const [note, setNote] = useState(""),
+    [busy, setBusy] = useState(false);
+  const saved = useRef<{ audio: HTMLAudioElement; url: string } | null>(null);
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setNote("");
+    return () => {
+      abort.current?.abort();
+      if (saved.current) {
+        saved.current.audio.pause();
+        URL.revokeObjectURL(saved.current.url);
+        saved.current = null;
+      }
+    };
+  }, [source?.id, source?.version, clip?.id, text]);
   return (
     <div className="listen-wrap">
       <button
         className="listen-btn"
         aria-label={`Listen to ${text}`}
-        onClick={() => {
+        disabled={busy}
+        title={clip ? "Play saved lesson audio" : "Play device Cantonese voice"}
+        onClick={async () => {
+          if (clip && source) {
+            setBusy(true);
+            setNote("");
+            try {
+              if (!saved.current) {
+                abort.current = new AbortController();
+                const session = auth
+                  ? (await auth.auth.getSession()).data.session
+                  : null;
+                const query = new URLSearchParams({
+                  lessonId: source.id,
+                  version: String(source.version),
+                  clipId: clip.id,
+                });
+                const response = await fetch(`/api/audio?${query}`, {
+                  headers: session
+                    ? { Authorization: `Bearer ${session.access_token}` }
+                    : {},
+                  signal: abort.current.signal,
+                });
+                if (!response.ok)
+                  throw new Error(
+                    "Saved audio could not load. Please try again.",
+                  );
+                const url = URL.createObjectURL(await response.blob());
+                saved.current = { audio: new Audio(url), url };
+              }
+              activeAudio?.pause();
+              window.speechSynthesis?.cancel();
+              activeAudio = saved.current.audio;
+              activeAudio.currentTime = 0;
+              activeAudio.onerror = () =>
+                setNote("Saved audio could not play. Please try again.");
+              await activeAudio.play();
+            } catch (e) {
+              if ((e as Error).name !== "AbortError")
+                setNote(
+                  (e as Error).name === "NotAllowedError"
+                    ? "Audio is ready. Tap Listen again to play."
+                    : "Saved audio could not play. Please try again.",
+                );
+            } finally {
+              setBusy(false);
+            }
+            return;
+          }
+          activeAudio?.pause();
           if (!("speechSynthesis" in window)) {
             setNote("Audio is unavailable on this browser.");
             return;

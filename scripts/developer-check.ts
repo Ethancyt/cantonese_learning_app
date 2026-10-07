@@ -1,8 +1,12 @@
+import { readFile } from "node:fs/promises";
+import { lessonAudioTexts } from "../lib/lesson-audio";
+import { demoMaterial } from "../lib/seeds";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
 import { seedLessons } from "../lib/seeds";
 async function main() {
+  const audioFixture = await readFile("tests/fixtures/audio-test-tone.mp3");
   const calls: { path: string; authorization?: string; body: string }[] = [];
   const id = "11111111-1111-4111-8111-111111111111";
   const user = {
@@ -53,7 +57,12 @@ async function main() {
     let result: unknown = [];
     if (pathname === "/v1/chat/completions")
       result = { choices: [{ message: { content: '{"connected":true}' } }] };
-    else if (pathname === "/v1/audio/transcriptions") result = { text: "你好" };
+    else if (pathname === "/v1/audio/speech") {
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.end(audioFixture);
+      return;
+    } else if (pathname === "/v1/audio/transcriptions")
+      result = { text: "你好" };
     else if (pathname === "/auth/v1/settings")
       result = { external: { email: true } };
     else if (pathname === "/auth/v1/admin/users") {
@@ -95,6 +104,7 @@ async function main() {
       viewport: { width: 1440, height: 1000 },
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(20000);
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     const base = process.env.TEST_BASE_URL || "http://localhost:3000";
@@ -148,6 +158,19 @@ async function main() {
     await expect(page.getByRole("status")).toContainText(
       "Speech transcription connected",
     );
+    await page.getByLabel(/^Voice provider/).selectOption("compatible");
+    await page
+      .getByLabel("Voice API endpoint", { exact: true })
+      .fill(service + "/v1/audio/speech");
+    await page
+      .getByLabel("Lesson voice API key", { exact: true })
+      .fill("developer-test-voice-key");
+    await page
+      .getByRole("button", { name: "Save & test lesson voice" })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "Lesson audio connected",
+    );
     await page.getByRole("button", { name: "Save & test Supabase" }).click();
     await expect(page.getByRole("status")).toContainText(
       "Supabase Auth and lesson tables",
@@ -192,6 +215,162 @@ async function main() {
       path: "/workspace/artifacts/developer-desktop.png",
       fullPage: true,
     });
+    // Exercise the complete saved-audio workflow through the Studio and real HTTP routes.
+    const developerAction = async (data: unknown) => {
+      const response = await context.request.post(base + "/api/developer", {
+        headers: { Origin: base },
+        data,
+      });
+      expect(response.ok()).toBe(true);
+      return response.json();
+    };
+    await developerAction({ action: "save", settings: { aiKey: null } });
+    const studioAction = async (data: unknown) => {
+      const response = await context.request.post(base + "/api/studio", {
+        headers: { Origin: base },
+        data,
+      });
+      expect(response.ok(), await response.text()).toBe(true);
+      return response.json();
+    };
+    await context.request.post(base + "/api/data", {
+      data: { action: "role", role: "volunteer" },
+    });
+    const uploaded = await context.request.post(base + "/api/studio", {
+      multipart: { filename: "Audio workshop test", text: demoMaterial },
+    });
+    expect(uploaded.ok()).toBe(true);
+    const material = await uploaded.json();
+    const generated = await studioAction({
+      action: "generate",
+      sourceId: material.source.id,
+      analysis: material.analysis,
+      settings: {
+        types: ["flashcard", "listen_choose", "speak"],
+        level: "beginner",
+        minutes: 5,
+        age: "Adults",
+        references: false,
+      },
+    });
+    await page.goto(base + "/studio");
+    await page
+      .locator(".draft-row")
+      .filter({ hasText: generated.lesson.title_zh })
+      .getByRole("button", { name: "Open draft" })
+      .click();
+    await page
+      .getByRole("button", { name: "Generate lesson audio", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "Listen to the clips before approving",
+      { timeout: 90000 },
+    );
+    let savedLesson = (
+      await (await context.request.get(base + "/api/data")).json()
+    ).drafts.find((l: any) => l.id === generated.lesson.id);
+    expect(savedLesson.audio.length).toBe(lessonAudioTexts(savedLesson).length);
+    const voiceCalls = () =>
+      calls.filter((c) => c.path === "/v1/audio/speech").length;
+    const afterGeneration = voiceCalls();
+    await page.evaluate(() => {
+      const original = HTMLMediaElement.prototype.play;
+      (window as any).successfulAudioPlays = 0;
+      HTMLMediaElement.prototype.play = async function () {
+        await original.call(this);
+        (window as any).successfulAudioPlays++;
+      };
+    });
+    const voicePanel = page
+      .getByRole("heading", { name: "Lesson voice clips" })
+      .locator("..");
+    await voicePanel
+      .getByRole("button", { name: /^Listen to/ })
+      .first()
+      .click();
+    await expect
+      .poll(() => page.evaluate(() => (window as any).successfulAudioPlays))
+      .toBe(1);
+    await voicePanel
+      .getByRole("button", { name: /^Listen to/ })
+      .first()
+      .click();
+    await expect
+      .poll(() => page.evaluate(() => (window as any).successfulAudioPlays))
+      .toBe(2);
+    expect(voiceCalls()).toBe(afterGeneration);
+    const clip = savedLesson.audio[0];
+    const audioURL =
+      base +
+      "/api/audio?" +
+      new URLSearchParams({
+        lessonId: savedLesson.id,
+        version: String(savedLesson.version),
+        clipId: clip.id,
+      });
+    expect((await anonymous.request.get(audioURL)).status()).toBe(400);
+    expect(
+      (
+        await anonymous.request.post(base + "/api/studio", {
+          data: { action: "audio", lessonId: savedLesson.id },
+        })
+      ).status(),
+    ).toBe(403);
+    const completedRetry = await studioAction({
+      action: "audio",
+      lessonId: savedLesson.id,
+    });
+    expect(completedRetry.remaining).toBe(0);
+    expect(voiceCalls()).toBe(afterGeneration);
+    // Saving cannot forge audio metadata.
+    savedLesson = (
+      await studioAction({
+        action: "save",
+        lesson: { ...savedLesson, audio: [] },
+      })
+    ).lesson;
+    expect(savedLesson.audio.length).toBe(lessonAudioTexts(savedLesson).length);
+    await studioAction({ action: "approve", lesson: savedLesson });
+    await studioAction({ action: "publish", lessonId: savedLesson.id });
+    const studentAudio = await anonymous.request.get(audioURL);
+    expect(studentAudio.ok()).toBe(true);
+    expect(studentAudio.headers()["content-type"]).toBe("audio/mpeg");
+    expect(await studentAudio.body()).toEqual(audioFixture);
+    expect(
+      (await studioAction({ action: "revise", lessonId: savedLesson.id }))
+        .lesson.version,
+    ).toBe(2);
+    expect((await anonymous.request.get(audioURL)).ok()).toBe(true);
+    // A new material can use the same stored-voice workflow.
+    const second = await studioAction({
+      action: "generate",
+      sourceId: material.source.id,
+      analysis: material.analysis,
+      settings: {
+        types: ["listen_choose"],
+        level: "beginner",
+        minutes: 5,
+        age: "Adults",
+        references: false,
+      },
+    });
+    let batch = await studioAction({
+      action: "audio",
+      lessonId: second.lesson.id,
+    });
+    while (batch.remaining)
+      batch = await studioAction({
+        action: "audio",
+        lessonId: second.lesson.id,
+      });
+    expect(batch.lesson.audio.length).toBe(
+      lessonAudioTexts(batch.lesson).length,
+    );
+    await developerAction({
+      action: "save",
+      settings: { aiKey: "developer-test-ai-key" },
+    });
+    await page.goto(base + "/developer");
     await page.getByLabel(/^Learning mode/).selectOption("supabase");
     await page.getByRole("button", { name: "Save service settings" }).click();
     await expect(page.getByRole("status")).toContainText("Settings saved");
@@ -224,6 +403,9 @@ async function main() {
           mode: "demo",
           aiKey: null,
           speechKey: null,
+          ttsKey: null,
+          ttsProvider: "disabled",
+          ttsUrl: "https://api.openai.com/v1/audio/speech",
           serviceKey: null,
           supabaseKey: null,
           supabaseUrl: "",
@@ -252,7 +434,7 @@ async function main() {
     ).toBeVisible();
     expect(errors).toEqual([]);
     console.log(
-      "Developer browser checks passed: password setup, protected settings, saved keys, AI/speech tests, account provisioning, runtime Supabase sign-in, persistence, locking, and mobile layout. Provider requests used local mocks.",
+      "Developer browser checks passed: password setup, protected settings, saved keys, AI/speech/voice tests, saved-clip generation and playback, retry reuse, draft privacy, immutable audio, new materials, account provisioning, runtime Supabase sign-in, persistence, locking, and mobile layout. Provider requests used local mocks.",
     );
   } finally {
     await browser.close();

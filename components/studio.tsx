@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   ExternalLink,
 } from "lucide-react";
+import { lessonAudioTexts } from "@/lib/lesson-audio";
+import { ListenButton } from "./dashboard";
 import { useApp, DataBoundary } from "./app-provider";
 import {
   Analysis,
@@ -69,7 +71,7 @@ export function Studio() {
     [previewReady, setPreviewReady] = useState(false),
     [previewFeedback, setPreviewFeedback] = useState("");
   const current = lesson?.exercises[selected];
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<unknown>) {
     setBusy(true);
     setError("");
     setNote("");
@@ -153,6 +155,36 @@ export function Studio() {
         : "Draft saved. Students cannot see it yet.",
     );
     await refresh();
+    return result.lesson as Lesson;
+  }
+  async function generateAudio() {
+    const saved = await save();
+    if (!saved) return;
+    let remaining = 1;
+    try {
+      while (remaining > 0) {
+        const result = await request("/api/studio", {
+          action: "audio",
+          lessonId: saved.id,
+        });
+        setLesson(result.lesson);
+        remaining = result.remaining;
+        setNote(
+          `Lesson audio: ${result.completed} of ${result.total} phrases saved. ${remaining ? "Generating…" : "Listen to the clips before approving."}`,
+        );
+      }
+    } catch (e) {
+      try {
+        const current = await request("/api/data");
+        const draft = current.drafts.find((l: Lesson) => l.id === saved.id);
+        if (draft) setLesson(draft);
+      } catch {
+        /* Keep the last successfully returned batch. */
+      }
+      throw e;
+    } finally {
+      await refresh();
+    }
   }
   async function open(l: Lesson) {
     await run(async () => {
@@ -1279,6 +1311,53 @@ export function Studio() {
                 </div>
               </div>
             </div>
+            <section className="panel" style={{ padding: 24, marginTop: 24 }}>
+              <h3>Lesson voice clips</h3>
+              <p>
+                {
+                  lessonAudioTexts(lesson).filter((text) =>
+                    lesson.audio?.some((clip) => clip.text === text),
+                  ).length
+                }{" "}
+                of {lessonAudioTexts(lesson).length} phrases have saved audio.
+                Review the Cantonese wording, then generate and listen before
+                approving.
+              </p>
+              <button
+                className="btn secondary"
+                disabled={busy}
+                onClick={() => run(generateAudio)}
+              >
+                Generate lesson audio
+              </button>
+              <p className="setup-field-help">
+                Set up a voice provider in Developer setup first. Finished clips
+                are reused on retry; changing text generates a new clip.
+                Generation uses your provider quota.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  marginTop: 12,
+                }}
+              >
+                {(lesson.audio || [])
+                  .filter((clip) =>
+                    lessonAudioTexts(lesson).includes(clip.text),
+                  )
+                  .map((clip) => (
+                    <div
+                      key={clip.id}
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <span>{clip.text}</span>
+                      <ListenButton lesson={lesson} text={clip.text} />
+                    </div>
+                  ))}
+              </div>
+            </section>
             <div className="studio-actions">
               <button
                 className="btn secondary"

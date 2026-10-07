@@ -134,6 +134,17 @@ export const moduleSchema = z
       .optional(),
   })
   .strict();
+export const audioClipSchema = z
+  .object({
+    id: z.string().regex(/^[a-f0-9]{64}$/),
+    text: z.string().min(1).max(700),
+    provider: z.enum(["azure", "compatible"]),
+    voice: z.string().min(1).max(100),
+    model: z.string().min(1).max(100),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+export type AudioClip = z.infer<typeof audioClipSchema>;
 export const lessonSchema = z
   .object({
     id: z.string(),
@@ -149,6 +160,7 @@ export const lessonSchema = z
     availableAt: z.string().datetime().optional(),
     learningObjectives: z.array(z.string()).min(1),
     module: moduleSchema.optional(),
+    audio: z.array(audioClipSchema).max(200).optional(),
     vocabulary: z.array(vocabularySchema).min(1).max(50),
     grammar: z.array(z.string()),
     culturalNotes: z.array(

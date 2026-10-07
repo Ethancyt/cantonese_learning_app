@@ -4,6 +4,7 @@ import { Client } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { Settings } from "./settings";
 import { CompatibleProvider } from "../ai/provider";
+import { synthesize } from "./lesson-audio";
 import { curriculumSQL } from "../../scripts/seed-supabase";
 
 function database(settings: Settings) {
@@ -40,7 +41,7 @@ function database(settings: Settings) {
 }
 export async function testService(
   settings: Settings,
-  service: "ai" | "speech" | "supabase" | "database",
+  service: "ai" | "speech" | "tts" | "supabase" | "database",
 ) {
   if (service === "ai") {
     if (!settings.aiKey) throw new Error("Add an AI API key first.");
@@ -51,6 +52,10 @@ export async function testService(
     if (!result || typeof result !== "object")
       throw new Error("AI connection test failed.");
     return "AI generation connected. This test uses a small provider request.";
+  }
+  if (service === "tts") {
+    await synthesize("你好，歡迎學廣東話。", settings);
+    return "Lesson audio connected. A short Cantonese voice clip was generated for this test.";
   }
   if (service === "speech") {
     if (!settings.speechKey) throw new Error("Add a speech API key first.");
@@ -152,6 +157,12 @@ export async function applyLearningDatabase(
     const strip = (sql: string) =>
       sql.replace(/^\s*(begin|commit);\s*$/gim, "");
     await runSQL(strip(modules));
+    await runSQL(
+      await readFile(
+        path.join(process.cwd(), "supabase/migrations/003_lesson_audio.sql"),
+        "utf8",
+      ),
+    );
     await runSQL(strip(curriculumSQL()));
     // Supabase defaults may vary; explicit grants let RLS govern authenticated access.
     await runSQL(

@@ -115,7 +115,9 @@ export async function POST(req: NextRequest) {
       return json({
         message: await testService(
           settings,
-          z.enum(["ai", "speech", "supabase", "database"]).parse(body.service),
+          z
+            .enum(["ai", "speech", "tts", "supabase", "database"])
+            .parse(body.service),
         ),
       });
     if (body.action === "database") {
@@ -145,7 +147,7 @@ export async function POST(req: NextRequest) {
     // Provider and database errors can include credentials; never log or return raw errors.
     const message = e instanceof Error ? e.message : "";
     const safe =
-      /^(Add |Use |Developer account already|Developer sign in|Connect to a Supabase|Existing database tables|AI connection test failed|Speech connection test failed|Supabase connection test failed|Account creation failed|Account role could not|Unknown service setting)/.test(
+      /^(Add |Use |Developer account already|Developer sign in|Connect to a Supabase|Existing database tables|Lesson audio|AI connection test failed|Speech connection test failed|Supabase connection test failed|Account creation failed|Account role could not|Unknown service setting)/.test(
         message,
       );
     return json(

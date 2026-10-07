@@ -83,7 +83,7 @@ export function ExerciseRenderer({
         </>
       )}
       {["listen_choose", "speak"].includes(e.type) && (
-        <ListenButton text={e.prompt} />
+        <ListenButton lesson={lesson} text={e.prompt} />
       )}
       {isChoice && (
         <div className="exercise-options">
@@ -115,7 +115,7 @@ export function ExerciseRenderer({
             )}
           </button>
           <div className="speech-controls">
-            <ListenButton text={vocabulary[card].traditional} />
+            <ListenButton lesson={lesson} text={vocabulary[card].traditional} />
             <button
               className="btn secondary"
               onClick={() => {
