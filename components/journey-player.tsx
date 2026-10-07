@@ -162,7 +162,7 @@ export function JourneyPlayer({ id }: { id: string }) {
           <div className="panel module-intro">
             <button className="back-link" onClick={() => setIndex(null)}>
               <ArrowLeft size={14} />
-              Back to module
+              Back to lesson
             </button>
             <ModuleTeaching section={section} lesson={lesson} />
             <button className="btn" onClick={() => setShowTeaching(false)}>
@@ -324,7 +324,7 @@ export function JourneyPlayer({ id }: { id: string }) {
       </section>
       <div className="journey-layout">
         <section className="path-panel panel">
-          <h2 style={{ fontSize: 19, marginBottom: 16 }}>Your module path</h2>
+          <h2 style={{ fontSize: 19, marginBottom: 16 }}>Your lesson path</h2>
           {lesson.module
             ? lesson.module.sections.map((section, n) => {
                 const count = section.exerciseIds.filter((id) =>
@@ -408,8 +408,7 @@ export function JourneyPlayer({ id }: { id: string }) {
               ))}
             </ul>
             <p className="help-text">
-              Original workshop practice · Traditional Chinese + Jyutping +
-              English.
+              After-class practice · Traditional Chinese + Jyutping + English.
             </p>
           </div>
           {lesson.module?.reference && (
@@ -422,7 +421,8 @@ export function JourneyPlayer({ id }: { id: string }) {
                 {lesson.module.reference.title} ↗
               </a>
               <p className="help-text">
-                Original workshop lessons; reference linked for further study.
+                Practice adapted to this unit’s topics. Open the original class
+                material to compare notes; this app uses modern Jyutping.
               </p>
             </div>
           )}

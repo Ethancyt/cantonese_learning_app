@@ -21,6 +21,15 @@ async function main() {
   await expect(
     page.getByRole("heading", { name: "你好，little explorer" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Your after-class lessons/ }),
+  ).toBeVisible();
+  await expect(page.locator(".card-unit")).toHaveText([
+    "LESSON 1",
+    "LESSON 2",
+    "LESSON 3",
+    "LESSON 4",
+  ]);
   await page.screenshot({
     path: "/workspace/artifacts/dashboard-desktop.png",
     fullPage: true,
@@ -32,14 +41,32 @@ async function main() {
     (l: any) => l.createdBy === "system",
   )) {
     await page.goto(base + "/journey/" + lesson.id);
-    await expect(page.locator(".module-path-section")).toHaveCount(4);
-    for (let i = 0; i < 4; i++) {
+    await expect(
+      page.getByRole("heading", { name: lesson.title_zh, exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".module-reference a")).toHaveAttribute(
+      "href",
+      lesson.module.reference.url,
+    );
+    await expect(page.locator(".module-path-section")).toHaveCount(
+      lesson.module.sections.length,
+    );
+    for (let i = 0; i < lesson.module.sections.length; i++) {
       await page.locator(".module-path-section button").nth(i).click();
       await expect(page.locator(".module-teaching h3").first()).toHaveText(
         lesson.module.sections[i].title,
       );
       if (lesson.id === "introductions" && i === 0) {
         await page.setViewportSize({ width: 390, height: 844 });
+        await expect
+          .poll(() =>
+            page
+              .locator(".sidebar")
+              .evaluate((sidebar) =>
+                Math.round(sidebar.getBoundingClientRect().right),
+              ),
+          )
+          .toBeLessThanOrEqual(0);
         if (
           await page.evaluate(
             () => document.documentElement.scrollWidth > innerWidth,

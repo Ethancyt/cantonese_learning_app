@@ -11,7 +11,7 @@ export function ModuleTeaching({
   return (
     <section className="module-teaching">
       <span className="eyebrow">
-        MODULE {lesson.module?.unit} · LEARN IN CONTEXT
+        LESSON {lesson.module?.unit} · LEARN IN CONTEXT
       </span>
       <h2>{section.title_zh}</h2>
       <h3>{section.title}</h3>

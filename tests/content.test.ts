@@ -7,7 +7,7 @@ import { analyze, generate } from "../lib/ai/lesson-generator";
 import { mastery, progress } from "../lib/progress";
 import { speakingFeedback } from "../lib/ai/feedback";
 import JSZip from "jszip";
-test("all four original journeys validate and cover each renderer type", () => {
+test("all four numbered after-class lessons validate and cover each renderer type", () => {
   assert.equal(seedLessons.length, 4);
   for (const lesson of seedLessons) {
     assert.ok(lessonSchema.safeParse(lesson).success);
@@ -18,7 +18,9 @@ test("all four original journeys validate and cover each renderer type", () => {
   }
   assert.ok(
     isCorrect(
-      seedLessons[1].exercises.find((e) => e.type === "sentence_order")!,
+      seedLessons[1].exercises.find(
+        (e) => e.type === "sentence_order" && e.answer === "再見，聽日見。",
+      )!,
       "再見，聽日見。",
     ),
   );

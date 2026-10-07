@@ -1,6 +1,7 @@
 import { Lesson, normalize } from "../schema";
 import { provider } from "./provider";
 import { z } from "zod";
+import { practicePhrases } from "../content/practice-phrases";
 export const replySchema = z.object({
   traditional: z.string().min(1).max(140),
   jyutping: z.string().max(300),
@@ -13,7 +14,8 @@ export async function roleplay(
 ) {
   const ai = await provider();
   const turn = messages.filter((m) => m.role === "user").length;
-  const word = lesson.vocabulary[turn % lesson.vocabulary.length];
+  const phrases = practicePhrases(lesson);
+  const word = phrases[turn % phrases.length];
   const last = messages.filter((m) => m.role === "user").at(-1)?.content;
   if (
     last &&

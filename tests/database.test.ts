@@ -40,7 +40,10 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
   );
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
-    16,
+    seedLessons.reduce(
+      (count, lesson) => count + lesson.module!.sections.length,
+      0,
+    ),
   );
   assert.equal(
     (await pg.query("select * from published_versions")).rows.length,

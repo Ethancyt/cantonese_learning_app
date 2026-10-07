@@ -15,6 +15,7 @@ import { recordingToWav } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
 import { exerciseAudioText } from "@/lib/lesson-audio";
+import { practicePhrases } from "@/lib/content/practice-phrases";
 import {
   pronunciationSchema,
   type PronunciationAssessment,
@@ -568,6 +569,7 @@ function Roleplay({
   preview: boolean;
 }) {
   const { request } = useApp();
+  const phrases = practicePhrases(lesson);
   const [turns, setTurns] = useState<
       {
         role: "user" | "assistant";
@@ -600,9 +602,9 @@ function Roleplay({
           { role: "user", content: text },
           {
             role: "assistant",
-            content: lesson.vocabulary[0].traditional,
-            jyutping: lesson.vocabulary[0].jyutping,
-            english: lesson.vocabulary[0].english,
+            content: phrases[0].traditional,
+            jyutping: phrases[0].jyutping,
+            english: phrases[0].english,
           },
         ]);
         setMode("Student preview");
@@ -654,7 +656,7 @@ function Roleplay({
       </div>
       {showHint && (
         <div className="hint-box">
-          {hint || `Try 「${lesson.vocabulary[0].traditional}」.`}
+          {hint || `Try 「${phrases[0].traditional}」.`}
         </div>
       )}
       <div aria-live="polite">
@@ -680,9 +682,13 @@ function Roleplay({
       )}
       <div className="chat-replies">
         {!done &&
-          lesson.roleplay.allowedVocabulary.slice(0, 4).map((w) => (
-            <button key={w} disabled={busy} onClick={() => send(w)}>
-              {w}
+          phrases.slice(0, 4).map((phrase) => (
+            <button
+              key={phrase.traditional}
+              disabled={busy}
+              onClick={() => send(phrase.traditional)}
+            >
+              {phrase.traditional}
             </button>
           ))}
       </div>

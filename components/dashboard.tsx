@@ -16,6 +16,7 @@ import {
 import { useApp, DataBoundary } from "./app-provider";
 import { Harbour, JourneyArt } from "./illustrations";
 import type { Lesson } from "@/lib/schema";
+import { lessonCompleted } from "@/lib/lesson-completion";
 import { useState, useEffect, useRef } from "react";
 export function Dashboard() {
   const { data } = useApp();
@@ -26,8 +27,8 @@ export function Dashboard() {
         <div />
       </DataBoundary>
     );
-  const done = (id: string) => data.completions.some((c) => c.lessonId === id);
-  const current = data.lessons.find((l) => !done(l.id)) || data.lessons[0];
+  const done = (lesson: Lesson) => lessonCompleted(lesson, data.completions);
+  const current = data.lessons.find((l) => !done(l)) || data.lessons[0];
   const percent = current
     ? Math.round(
         (new Set(
@@ -45,7 +46,7 @@ export function Dashboard() {
     (l) =>
       filter === "All journeys" ||
       (filter === "From my workshop" && l.createdBy !== "system") ||
-      (filter === "Completed" && done(l.id)),
+      (filter === "Completed" && done(l)),
   );
   return (
     <DataBoundary>
@@ -68,7 +69,7 @@ export function Dashboard() {
       <section className="hero panel">
         <div className="hero-copy">
           <span className="pill light">
-            YOUR NEXT ADVENTURE <span>今日練習</span>
+            AFTER-CLASS PRACTICE <span>今日練習</span>
           </span>
           <h2>
             Big adventures start
@@ -143,12 +144,15 @@ export function Dashboard() {
         <div className="section-heading">
           <div>
             <h2>
-              Your Hong Kong journeys <span>探索香港</span>
+              Your after-class lessons <span>課後練習</span>
             </h2>
-            <p>Practise what you’ve learned. Discover a little more.</p>
+            <p>
+              Follow Lessons 1–4 alongside your Cantonese class, then review
+              what you’ve learned.
+            </p>
           </div>
           <span className="small-label">
-            {data.lessons.length} journeys to explore
+            {data.lessons.length} lessons to practise
           </span>
         </div>
         <div className="filter-row" role="group" aria-label="Filter journeys">
@@ -180,10 +184,10 @@ export function Dashboard() {
                 <div className="card-art">
                   <span className="card-unit">
                     {l.createdBy === "system"
-                      ? `MODULE ${l.module?.unit || data.lessons.indexOf(l) + 1}`
+                      ? `LESSON ${l.module?.unit || data.lessons.indexOf(l) + 1}`
                       : "YOUR WORKSHOP"}
                   </span>
-                  {done(l.id) && (
+                  {done(l) && (
                     <span className="done-badge">
                       <Check size={12} />
                       Completed
@@ -210,7 +214,7 @@ export function Dashboard() {
                   </div>
                   <div className="card-bottom">
                     <span>
-                      {done(l.id)
+                      {done(l)
                         ? "Journey complete"
                         : progress
                           ? `${progress}% explored`

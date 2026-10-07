@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { seedLessons } from "../lib/seeds";
 import { applyLearningDatabase } from "../lib/server/developer-services";
 test("developer database button installs atomically and upgrades without duplicating modules", async (t) => {
   const pg = new PGlite();
@@ -18,10 +19,34 @@ test("developer database button installs atomically and upgrades without duplica
     return { rows: (results.at(-1)?.rows as Record<string, unknown>[]) || [] };
   };
   await applyLearningDatabase(query);
+  // Model a local installation with an earlier system curriculum and its
+  // immutable publication. Re-initializing must restore current lessons while
+  // retaining that older content exactly.
+  const previousLesson = {
+    ...structuredClone(seedLessons[0]),
+    version: 2,
+    title: "Previous class material",
+  };
+  await pg.query("update lessons set version=2,payload=$1 where id=$2", [
+    JSON.stringify(previousLesson),
+    previousLesson.id,
+  ]);
+  await pg.query(
+    "insert into published_versions(lesson_id,version,payload) values($1,2,$2)",
+    [previousLesson.id, JSON.stringify(previousLesson)],
+  );
   const original = (
     await pg.query("select * from published_versions order by lesson_id")
   ).rows;
   await applyLearningDatabase(query);
+  assert.equal(
+    (
+      await pg.query<{ version: number }>(
+        "select version from lessons where id='start'",
+      )
+    ).rows[0].version,
+    3,
+  );
   assert.deepEqual(
     (await pg.query("select * from published_versions order by lesson_id"))
       .rows,
@@ -29,7 +54,10 @@ test("developer database button installs atomically and upgrades without duplica
   );
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
-    16,
+    seedLessons.reduce(
+      (count, lesson) => count + lesson.module!.sections.length,
+      0,
+    ),
   );
   await pg.exec("set role anon");
   assert.equal(
@@ -41,6 +69,9 @@ test("developer database button installs atomically and upgrades without duplica
   await assert.rejects(() => applyLearningDatabase(query), /do not match/);
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
-    16,
+    seedLessons.reduce(
+      (count, lesson) => count + lesson.module!.sections.length,
+      0,
+    ),
   );
 });

@@ -42,6 +42,16 @@ export async function GET(req: NextRequest) {
     const published = [...latest.values()].filter(
       (l) => !db.lessons.some((d) => d.id === l.id && d.status === "archived"),
     );
+    // Hosted query results have no implicit order; put the numbered course first.
+    published.sort((a, b) =>
+      a.createdBy === "system"
+        ? b.createdBy === "system"
+          ? (a.module?.unit || 0) - (b.module?.unit || 0)
+          : -1
+        : b.createdBy === "system"
+          ? 1
+          : 0,
+    );
     return NextResponse.json({
       lessons: published.map(publicLesson),
       drafts:

@@ -26,7 +26,7 @@ Demo content, drafts, immutable published versions, attempts, completions, repor
 
 ## Presentation walkthrough
 
-1. Browse the four original journeys: 開始學廣東話, 打招呼, 自我介紹, 有禮貌.
+1. Browse Lesson 1 (Cantonese foundations and study tools), Lesson 2 (greetings), Lesson 3 (introductions, hobbies, and family), and Lesson 4 (manners). They follow the EduHK Units 1–4 linked by the user.
 2. Open a journey, reveal vocabulary cards, save a word, and complete an activity. Wrong answers are saved for review.
 3. Try speaking: record and replay your own audio, or practise aloud. Without a speech provider, no transcription or pronunciation score is invented.
 4. Try the workshop buddy. Unconfigured AI uses visibly labelled, constrained scripted replies.
@@ -137,10 +137,19 @@ Browser checks need Chromium (`CHROMIUM_PATH` can override `/usr/bin/chromium`) 
 
 The complete local demonstration is operational. Live Supabase, AI, and Azure Speech endpoints require your credentials and separate live validation. Demo role switching is intentionally permissive: **do not expose `APP_MODE=demo` as a real multi-user children's platform**. Real deployments require Supabase mode, TLS, staff provisioning, consent/retention policies and provider review appropriate to your actual users. Current in-memory rate limiting assumes one process; use a shared limiter before scaling across instances. Retrieved source documents and generated educational content always need human review; output validation does not certify linguistic correctness.
 
-## Structured learning modules
+## Numbered after-class lessons
 
-The four original topics now use coherent modules with four sections each: context, teaching points, bilingual/Jyutping dialogues, sentence examples, and linked practice. The player introduces each section before practice and lets learners revisit the conversation. Flashcards use only that section’s phrases. Studio can review teaching points and maintains section activity links during edits. Uploaded workshops receive a source-based module scaffold for staff review; a source without a translated dialogue is not given an invented dialogue.
+The default journeys are four numbered lessons aligned with [EduHK Survival Cantonese Units 1–4](https://www.eduhk.hk/cle/resources/cep/cantonese-survival-package/index.html). The public unit pages and vocabulary tables were read on 8 October 2026. Each lesson links to its own original unit and contains a lecture recap, teaching points, vocabulary in context, original dialogues, sentence examples, listening, grammar activities, Azure pronunciation checks, conversation practice, and a final review. Learners can practise one section at a time; these are after-class activities rather than a replacement for the lecture.
 
-`lib/content/modules.ts` contains original workshop content. The EduHK page is linked as a reference, but its full outline and assets could not be retrieved in the cloud network used for this task. These four modules follow the topics specified in the project brief; they do not claim to reproduce the entire official Survival Cantonese package. Supply the remaining topic outline to extend the course accurately. Database lesson JSON remains canonical, with normalized module/section indexes and RLS added by migration 002.
+| Lesson | Lecture coverage                                                                          | Sections | Vocabulary | Activities |
+| ------ | ----------------------------------------------------------------------------------------- | -------- | ---------- | ---------- |
+| 1      | Romanization, initials/finals, six tones, 我係, dictionary tools, and vocabulary logs     | 6        | 32         | 26         |
+| 2      | Greetings, forms of address, names/origins, SVO word order, wellbeing, and destinations   | 6        | 41         | 26         |
+| 3      | Age/work, leisure, A-not-A questions, family, living arrangements, and profile vocabulary | 7        | 42         | 29         |
+| 4      | Thanks, descriptions, borrowing/help, apologies, repetition, good wishes, and register    | 7        | 38         | 30         |
 
-To update your Windows Git checkout, stop its dev server and run `git pull origin main`. Double-click `Start-Workshop.cmd` to install dependencies and open setup, or run `npm ci` and `npm run dev`. Preserve `.data` and any existing `.env.local`. Existing demo version 1 progress is preserved and the new curriculum appears as version 2. Your local Windows filesystem cannot be modified from this cloud workspace.
+`lib/content/survival-course.ts` is the reviewed practice content; `lib/content/modules.ts` builds strict lesson records. The source course uses a numbered notation influenced by Yale; the app consistently provides modern Jyutping and explains the difference. Activities and dialogues are original adaptations of the unit topics; source prose, table images, and audio files are not redistributed. The remaining EduHK Units 5–15 are outside this requested first batch.
+
+Stable lesson IDs are retained and the curriculum advances to version 3. Demo mode automatically upgrades published system lessons on load, preserving previous published snapshots, attempts, completions, uploaded workshops, and drafts being edited. Completion badges match the current version, so finishing an old lesson does not mark the new activities complete. In Supabase mode, run **Developer setup → Initialize learning database** again to apply the numbered curriculum; the existing installation and learner history are retained. Schema/RLS validation and idempotent seeding remain part of the database checks.
+
+To update your Windows Git checkout, stop its dev server and run `git pull origin main`. Double-click `Start-Workshop.cmd` to install dependencies and open setup, or run `npm ci` and `npm run dev`. Preserve `.data` and any existing `.env.local`. Existing demo version 1/2 progress is preserved and the new curriculum appears as version 3. Your local Windows filesystem cannot be modified from this cloud workspace.
