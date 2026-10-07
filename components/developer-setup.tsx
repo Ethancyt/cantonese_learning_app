@@ -445,7 +445,10 @@ export function DeveloperSetup() {
                   <div>
                     <h2>Speech-to-text (STT)</h2>
                     <p>
-                      Optional · learners can record and replay without a key.
+                      Azure uses this key for Cantonese word recognition and
+                      pronunciation assessment. No separate assessment key is
+                      needed. F0 usage is subject to Azure's free-tier limits.
+                      Learners can still record and replay without a key.
                     </p>
                   </div>
                 </div>
@@ -478,7 +481,7 @@ export function DeveloperSetup() {
                     />
                     <span className="setup-field-help">
                       Use the region from your Azure Speech resource. Cantonese
-                      recognition uses zh-HK.
+                      recognition and pronunciation assessment use zh-HK.
                     </span>
                   </label>
                 ) : (

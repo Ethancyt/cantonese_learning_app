@@ -1,9 +1,8 @@
-import { transcribeAudio } from "@/lib/server/speech";
+import { assessSpeaking } from "@/lib/server/speech";
 import { readSettings } from "@/lib/server/settings";
 import { NextRequest, NextResponse } from "next/server";
 import { identity, guard, failure } from "@/lib/server/security";
 import { readData } from "@/lib/server/repository";
-import { speakingFeedback } from "@/lib/ai/feedback";
 export async function POST(req: NextRequest) {
   try {
     const user = await identity(req);
@@ -43,10 +42,11 @@ export async function POST(req: NextRequest) {
       !/^audio\/(webm|mp4|ogg|wav)/.test(file.type)
     )
       throw new Error("Invalid recording.");
-    const text = await transcribeAudio(file, settings);
+    // Use the authorized published exercise's answer, never a client-supplied target.
+    const feedback = await assessSpeaking(file, settings, e.answer);
     return NextResponse.json({
       available: true,
-      ...speakingFeedback(e.answer, text),
+      ...feedback,
     });
   } catch (e) {
     return failure(e);

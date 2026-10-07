@@ -128,7 +128,7 @@ async function main() {
           await page.getByRole("button", { name: "Stop recording" }).click();
           await expect(page.locator("audio")).toBeVisible();
           await page
-            .getByRole("button", { name: "Check recognized words" })
+            .getByRole("button", { name: "Check pronunciation" })
             .click();
           await expect(
             page.getByText(/Transcription is not connected/),
@@ -277,9 +277,7 @@ async function main() {
       await page.waitForTimeout(500);
       await page.getByRole("button", { name: "Stop recording" }).click();
       await expect(page.locator("audio")).toBeVisible();
-      await page
-        .getByRole("button", { name: "Check recognized words" })
-        .click();
+      await page.getByRole("button", { name: "Check pronunciation" }).click();
       await expect(
         page.getByText(/Transcription is not connected/),
       ).toBeVisible();

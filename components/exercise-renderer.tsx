@@ -15,6 +15,10 @@ import { recordingToWav } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
 import { exerciseAudioText } from "@/lib/lesson-audio";
+import {
+  pronunciationSchema,
+  type PronunciationAssessment,
+} from "@/lib/pronunciation";
 import { useApp } from "./app-provider";
 export const typeLabels: Record<Exercise["type"], string> = {
   flashcard: "Meet the words",
@@ -356,6 +360,9 @@ function Speaking({
     [blob, setBlob] = useState<Blob | null>(null),
     [note, setNote] = useState(""),
     [busy, setBusy] = useState(false);
+  const [assessment, setAssessment] = useState<PronunciationAssessment | null>(
+    null,
+  );
   const recorder = useRef<MediaRecorder | null>(null),
     stream = useRef<MediaStream | null>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
@@ -378,6 +385,9 @@ function Speaking({
         return;
       }
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAssessment(null);
+      setBlob(null);
+      setUrl("");
       stream.current = s;
       const r = new MediaRecorder(s);
       recorder.current = r;
@@ -394,16 +404,16 @@ function Speaking({
         setBlob(audio);
         setRecording(false);
         setNote(
-          "Recording stays on this device unless you choose “Check recognized words”.",
+          "Recording stays on this device unless you choose “Check pronunciation”.",
         );
         onReady();
       };
       r.start();
       setRecording(true);
-      setNote("Recording… stops automatically after 30 seconds.");
+      setNote("Recording… stops automatically after 25 seconds.");
       timer.current = setTimeout(() => {
         if (r.state === "recording") r.stop();
-      }, 30000);
+      }, 25000);
     } catch {
       setNote(
         "Microphone permission was not granted. You can still practise aloud.",
@@ -413,6 +423,7 @@ function Speaking({
   async function transcribe() {
     if (!blob) return;
     setBusy(true);
+    setAssessment(null);
     try {
       const wav = await recordingToWav(blob);
       const form = new FormData();
@@ -421,6 +432,8 @@ function Speaking({
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);
       const result = await request("/api/transcribe", form);
+      const parsed = pronunciationSchema.safeParse(result.assessment);
+      if (result.available && parsed.success) setAssessment(parsed.data);
       setNote(
         result.available
           ? `Expected: ${result.expected || exercise.answer}\nRecognized: ${result.recognized}\n${result.message}\n${result.note}`
@@ -437,6 +450,7 @@ function Speaking({
       <button
         className={`record-button ${recording ? "recording" : ""}`}
         aria-label={recording ? "Stop recording" : "Start recording"}
+        disabled={busy}
         onClick={() => {
           if (recording) {
             if (timer.current) clearTimeout(timer.current);
@@ -449,21 +463,85 @@ function Speaking({
       <p className="record-note" role="status">
         {note || "Listen first. Record yourself or practise aloud."}
       </p>
+      {assessment && (
+        <section
+          className="pronunciation-feedback"
+          aria-label="Pronunciation assessment"
+          aria-live="polite"
+        >
+          <h3>Your pronunciation</h3>
+          <dl className="pronunciation-scores">
+            {(
+              [
+                ["Overall", assessment.overall],
+                ["Accuracy", assessment.accuracy],
+                ["Fluency", assessment.fluency],
+                ["Completeness", assessment.completeness],
+              ] as const
+            ).map(([label, score]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>
+                  {Math.round(score)}
+                  <small> / 100</small>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {assessment.words.length > 0 && (
+            <table className="pronunciation-words">
+              <caption>Words to practise</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Word</th>
+                  <th scope="col">Accuracy</th>
+                  <th scope="col">Feedback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assessment.words.map((word, index) => (
+                  <tr key={index}>
+                    <th scope="row" lang="zh-HK">
+                      {word.word}
+                    </th>
+                    <td>
+                      {word.accuracy === null
+                        ? "—"
+                        : `${Math.round(word.accuracy)} / 100`}
+                    </td>
+                    <td>
+                      {
+                        {
+                          None: "No issue reported",
+                          Mispronunciation: "Try this word again",
+                          Omission: "Skipped word",
+                          Insertion: "Extra word",
+                        }[word.error]
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
       {url && <audio controls src={url} />}
       <div className="speech-controls">
         {blob && !preview && (
           <button
-            disabled={busy}
+            disabled={busy || recording}
             className="btn secondary"
             onClick={transcribe}
           >
-            {busy ? "Checking…" : "Check recognized words"}
+            {busy ? "Checking…" : "Check pronunciation"}
           </button>
         )}
         <button
           className="btn secondary"
           onClick={() => {
             onReady();
+            setAssessment(null);
             setNote(
               "Practice noted. This self-check gives no pronunciation score.",
             );
@@ -473,7 +551,9 @@ function Speaking({
         </button>
       </div>
       <p className="help-text" style={{ marginTop: 18 }}>
-        Speaking practice checks effort and recognized words, not tone accuracy.
+        Record the target phrase, then check pronunciation. Azure can assess
+        accuracy, fluency, completeness, and individual words. You can also
+        practise aloud without an automatic score.
       </p>
     </div>
   );

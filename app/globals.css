@@ -1138,6 +1138,53 @@ footer {
   max-width: 100%;
   margin: 10px;
 }
+.pronunciation-feedback {
+  margin: 18px auto;
+  padding: 18px;
+  border: 1px solid #dce5d4;
+  border-radius: 16px;
+  background: #f8faf5;
+  text-align: left;
+}
+.pronunciation-feedback h3 {
+  margin: 0 0 14px;
+}
+.pronunciation-scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 18px;
+}
+.pronunciation-scores dt {
+  font-size: 12px;
+  color: #66775b;
+}
+.pronunciation-scores dd {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+.pronunciation-scores small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.pronunciation-words {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.pronunciation-words caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.pronunciation-words th,
+.pronunciation-words td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid #dce5d4;
+}
 .chat-panel {
   text-align: left;
 }

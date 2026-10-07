@@ -460,7 +460,7 @@ async function main() {
     await page.waitForTimeout(700);
     await page.getByRole("button", { name: "Stop recording" }).click();
     await expect(page.locator("audio")).toBeVisible();
-    await page.getByRole("button", { name: "Check recognized words" }).click();
+    await page.getByRole("button", { name: "Check pronunciation" }).click();
     await expect(page.locator(".record-note")).toContainText(
       `Recognized: ${speaking.answer}`,
     );
@@ -478,10 +478,70 @@ async function main() {
     expect(recognitionCall.body).toContain("RIFF");
     expect(recognitionCall.body).toContain("WAVE");
     recognizedText = "這是不同的句子";
-    await page.getByRole("button", { name: "Check recognized words" }).click();
+    await page.getByRole("button", { name: "Check pronunciation" }).click();
     await expect(page.locator(".record-note")).toContainText(
       "The recognized words differ",
     );
+
+    // Test presentation separately from the real compatible request above;
+    // Azure request headers and provider result parsing are checked by unit tests.
+    let assessmentResponse: Record<string, unknown> = {
+      available: true,
+      expected: speaking.answer,
+      recognized: speaking.answer,
+      message: "The recognized words match. Great effort!",
+      note: "Azure estimates pronunciation for this Cantonese phrase.",
+      assessment: {
+        overall: 73.4,
+        accuracy: 65.2,
+        fluency: 82.1,
+        completeness: 90,
+        words: [
+          { word: "你好", accuracy: 54, error: "Mispronunciation" },
+          { word: "老師", accuracy: 0, error: "Omission" },
+          { word: "我", accuracy: null, error: "Insertion" },
+        ],
+      },
+    };
+    await page.route("**/api/transcribe", (route) =>
+      route.fulfill({ json: assessmentResponse }),
+    );
+    await page.getByRole("button", { name: "Check pronunciation" }).click();
+    const assessmentPanel = page.getByRole("region", {
+      name: "Pronunciation assessment",
+    });
+    await expect(assessmentPanel).toBeVisible();
+    await expect(assessmentPanel.locator("dd")).toHaveText([
+      "73 / 100",
+      "65 / 100",
+      "82 / 100",
+      "90 / 100",
+    ]);
+    await expect(assessmentPanel).toContainText("Try this word again");
+    await expect(assessmentPanel).toContainText("Skipped word");
+    await expect(assessmentPanel).toContainText("Extra word");
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByRole("button", { name: "Start recording" }).click();
+    await expect(assessmentPanel).toHaveCount(0);
+    await page.waitForTimeout(500);
+    await page.getByRole("button", { name: "Stop recording" }).click();
+    assessmentResponse = {
+      ...assessmentResponse,
+      assessment: null,
+      note: "No pronunciation score is given; try another recording.",
+    };
+    await page.getByRole("button", { name: "Check pronunciation" }).click();
+    await expect(page.locator(".record-note")).toContainText(
+      "No pronunciation score",
+    );
+    await expect(assessmentPanel).toHaveCount(0);
+    await page.unroute("**/api/transcribe");
 
     expect(
       (await studioAction({ action: "revise", lessonId: savedLesson.id }))
@@ -581,7 +641,7 @@ async function main() {
     ).toBeVisible();
     expect(errors).toEqual([]);
     console.log(
-      "Developer browser checks passed: password setup, protected settings, saved keys, AI/speech/voice tests, saved-clip generation and playback, retry reuse, draft privacy, immutable audio, new materials, account provisioning, runtime Supabase sign-in, persistence, locking, and mobile layout. Provider requests used local mocks.",
+      "Developer browser checks passed: password setup, protected settings, saved keys, AI/speech/voice tests, saved-clip generation and playback, word checks, pronunciation score/word feedback display, stale/missing score handling, retry reuse, draft privacy, immutable audio, new materials, account provisioning, runtime Supabase sign-in, persistence, locking, and mobile layout. Provider requests used local mocks; assessment presentation used a mocked response.",
     );
   } finally {
     await browser.close();
