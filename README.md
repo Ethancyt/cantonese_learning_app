@@ -11,6 +11,8 @@ npm ci
 npm run dev
 ```
 
+Startup checks installed packages against the lockfile and automatically installs missing or updated dependencies. This also handles new packages after `git pull`; you do not need to edit code or install individual packages.
+
 The development server defaults to **demo mode** without any accounts or API keys. Entering volunteer demo mode seeds an original café source document in your Studio. For a production build of an isolated presentation demo:
 
 ```sh

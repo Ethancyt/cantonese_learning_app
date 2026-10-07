@@ -13,7 +13,11 @@
     "supabase:prepare": "tsx scripts/prepare-supabase.ts",
     "supabase:check": "tsx scripts/check-supabase.ts",
     "start:hosted": "next start --hostname 0.0.0.0",
-    "test:developer": "tsx scripts/developer-check.ts"
+    "test:developer": "tsx scripts/developer-check.ts",
+    "predev": "node scripts/ensure-dependencies.mjs dev",
+    "prebuild": "node scripts/ensure-dependencies.mjs build",
+    "prestart": "node scripts/ensure-dependencies.mjs start",
+    "prestart:hosted": "node scripts/ensure-dependencies.mjs hosted"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",
