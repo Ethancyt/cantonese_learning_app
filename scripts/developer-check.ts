@@ -7,6 +7,7 @@ import { chromium, expect } from "@playwright/test";
 import { seedLessons } from "../lib/seeds";
 async function main() {
   let voiceStatus = 200;
+  let recognizedText = "你好";
   const audioFixture = await readFile("tests/fixtures/audio-test-tone.mp3");
   const calls: {
     path: string;
@@ -80,7 +81,7 @@ async function main() {
       pathname === "/v1/audio/transcriptions" ||
       pathname === "/v1/stt/transcribe"
     )
-      result = { text: "你好" };
+      result = { text: recognizedText };
     else if (pathname === "/auth/v1/settings")
       result = { external: { email: true } };
     else if (pathname === "/auth/v1/admin/users") {
@@ -197,6 +198,19 @@ async function main() {
     await expect(page.getByRole("status")).toContainText(
       "Lesson audio connected",
     );
+    const voicePreview = page.getByLabel("Lesson voice preview", {
+      exact: true,
+    });
+    await expect(voicePreview).toBeVisible();
+    await expect(voicePreview).toHaveAttribute(
+      "src",
+      /^data:audio\/mpeg;base64,/,
+    );
+    await expect
+      .poll(() =>
+        voicePreview.evaluate((audio: HTMLAudioElement) => audio.duration),
+      )
+      .toBeGreaterThan(0);
     voiceStatus = 401;
     await page
       .getByRole("button", { name: "Save & test lesson voice" })
@@ -497,12 +511,27 @@ async function main() {
     expect(studentAudio.headers()["content-type"]).toBe("audio/mpeg");
     expect(await studentAudio.body()).toEqual(audioFixture);
     const speaking = savedLesson.exercises.find((e: any) => e.type === "speak");
+    await developerAction({
+      action: "save",
+      settings: {
+        speechProvider: "knowlez",
+        speechUrl: service + "/v1/stt/transcribe",
+        speechKey: "browser-knowlez-stt-canary",
+      },
+    });
+    recognizedText = speaking.answer;
     const sectionIndex = savedLesson.module.sections.findIndex((s: any) =>
       s.exerciseIds.includes(speaking.id),
     );
     await page.goto(base + "/journey/" + savedLesson.id);
     await page.locator(".module-path-section button").nth(sectionIndex).click();
     await page.getByRole("button", { name: "Continue to practice" }).click();
+    await expect(
+      page.getByRole("button", {
+        name: `Listen to ${speaking.answer}`,
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Start recording" }).click();
     await expect(
       page.getByRole("button", { name: "Stop recording" }),
@@ -512,13 +541,28 @@ async function main() {
     await expect(page.locator("audio")).toBeVisible();
     await page.getByRole("button", { name: "Check recognized words" }).click();
     await expect(page.locator(".record-note")).toContainText(
-      "Recognized: 你好",
+      `Recognized: ${speaking.answer}`,
+    );
+    await expect(page.locator(".record-note")).toContainText(
+      `Expected: ${speaking.answer}`,
+    );
+    await expect(page.locator(".record-note")).toContainText(
+      "The recognized words match",
     );
     const recognitionCall = calls
-      .filter((c) => c.path === "/v1/audio/transcriptions")
+      .filter((c) => c.path === "/v1/stt/transcribe")
       .at(-1)!;
-    expect(recognitionCall.body).toContain('filename="practice.wav"');
-    expect(recognitionCall.body).toContain("audio/wav");
+    expect(recognitionCall.apiKey).toBe("browser-knowlez-stt-canary");
+    const sent = JSON.parse(recognitionCall.body);
+    expect(sent.filename).toBe("practice.wav");
+    const wavBytes = Buffer.from(sent.audio_base64, "base64");
+    expect(wavBytes.toString("ascii", 0, 4)).toBe("RIFF");
+    expect(wavBytes.readUInt32LE(24)).toBe(16000);
+    recognizedText = "這是不同的句子";
+    await page.getByRole("button", { name: "Check recognized words" }).click();
+    await expect(page.locator(".record-note")).toContainText(
+      "The recognized words differ",
+    );
 
     expect(
       (await studioAction({ action: "revise", lessonId: savedLesson.id }))

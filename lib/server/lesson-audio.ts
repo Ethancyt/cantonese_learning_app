@@ -224,6 +224,14 @@ export async function generateLessonAudio(
       "Lesson audio needs a voice provider and API key in Developer setup.",
     );
   const texts = lessonAudioTexts(lesson);
+  if (
+    texts.length &&
+    settings.ttsProvider === "knowlez" &&
+    settings.ttsVoice === "af_bella"
+  )
+    throw new Error(
+      "Lesson audio voice af_bella is not verified for Cantonese. Select a provider-supported Cantonese voice in Developer setup and play the preview before generating lesson audio.",
+    );
   if (texts.length > 200 || texts.some((text) => text.length > 700))
     throw new Error(
       "Lesson audio supports up to 200 phrases of 700 characters each. Split this material into smaller lessons.",

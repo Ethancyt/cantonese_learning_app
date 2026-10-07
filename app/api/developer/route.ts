@@ -15,6 +15,7 @@ import {
   testService,
   initializeDatabase,
   provisionAccount,
+  previewLessonVoice,
 } from "@/lib/server/developer-services";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,15 +112,16 @@ export async function POST(req: NextRequest) {
         message: "Settings saved. Changes are active immediately.",
       });
     const settings = await readSettings();
-    if (body.action === "test")
-      return json({
-        message: await testService(
-          settings,
-          z
-            .enum(["ai", "speech", "tts", "supabase", "database"])
-            .parse(body.service),
-        ),
-      });
+    if (body.action === "test") {
+      const service = z
+        .enum(["ai", "speech", "tts", "supabase", "database"])
+        .parse(body.service);
+      return json(
+        service === "tts"
+          ? await previewLessonVoice(settings)
+          : { message: await testService(settings, service) },
+      );
+    }
     if (body.action === "database") {
       if (body.confirm !== true)
         return json({ error: "Confirm database initialization first." }, 400);

@@ -1,6 +1,7 @@
 import { normalize } from "../schema";
 export function speakingFeedback(expected: string, recognized: string) {
   return {
+    expected,
     recognized,
     matches: normalize(expected) === normalize(recognized),
     message:

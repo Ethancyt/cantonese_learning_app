@@ -45,6 +45,10 @@ export function DeveloperSetup() {
     [busy, setBusy] = useState(false),
     [note, setNote] = useState(""),
     [error, setError] = useState(""),
+    [voicePreview, setVoicePreview] = useState<{
+      text: string;
+      audioBase64: string;
+    } | null>(null),
     [databaseConfirmed, setDatabaseConfirmed] = useState(false),
     [account, setAccount] = useState({
       email: "",
@@ -62,6 +66,7 @@ export function DeveloperSetup() {
     return result;
   }
   async function load() {
+    setVoicePreview(null);
     const response = await fetch("/api/developer", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load developer setup.");
     const result: State = await response.json();
@@ -95,12 +100,25 @@ export function DeveloperSetup() {
     }
   }
   function field(name: keyof ServiceSettings, value: string) {
+    if (
+      [
+        "ttsProvider",
+        "ttsUrl",
+        "ttsModel",
+        "ttsVoice",
+        "ttsKey",
+        "azureRegion",
+        "azureVoice",
+      ].includes(name)
+    )
+      setVoicePreview(null);
     setForm((f) => (f ? { ...f, [name]: value } : f));
     if (secrets.includes(name as Secret))
       setRemoved((r) => r.filter((k) => k !== name));
   }
   function recommendedProviders() {
     if (!form) return;
+    setVoicePreview(null);
     const clear: Secret[] = [];
     if (form.aiUrl.replace(/\/$/, "") !== "https://openrouter.ai/api/v1")
       clear.push("aiKey");
@@ -121,6 +139,7 @@ export function DeveloperSetup() {
   }
   function knowlezProviders() {
     if (!form) return;
+    setVoicePreview(null);
     const clear: Secret[] = [];
     if (form.aiUrl.replace(/\/$/, "") !== "https://openrouter.ai/api/v1")
       clear.push("aiKey");
@@ -224,6 +243,8 @@ export function DeveloperSetup() {
       await save();
       const result = await call({ action: "test", service });
       setNote(result.message);
+      if (service === "tts" && typeof result.audioBase64 === "string")
+        setVoicePreview({ text: result.text, audioBase64: result.audioBase64 });
     });
   }
   return (
@@ -644,11 +665,11 @@ export function DeveloperSetup() {
                   </label>
                   {form.ttsProvider === "knowlez" ? (
                     <p className="setup-field-help">
-                      Knowlez’s documented default is af_bella. Its public docs
-                      do not confirm a Cantonese voice. Enter a Cantonese voice
-                      confirmed by Knowlez and preview the audio before
-                      publishing. Azure voice names are not guaranteed to work
-                      here.
+                      af_bella is not verified for Cantonese and is blocked for
+                      lesson generation. Its preview remains available so you
+                      can hear the result. Enter a Cantonese voice confirmed by
+                      Knowlez and preview the audio before publishing. Azure
+                      voice names are not guaranteed to work here.
                     </p>
                   ) : (
                     <p>
@@ -674,6 +695,24 @@ export function DeveloperSetup() {
               >
                 Save & test lesson voice
               </button>
+              {voicePreview && (
+                <div className="info-panel panel">
+                  <strong>Lesson voice preview</strong>
+                  <p>{voicePreview.text}</p>
+                  <audio
+                    controls
+                    preload="metadata"
+                    style={{ width: "100%" }}
+                    aria-label="Lesson voice preview"
+                    src={`data:audio/mpeg;base64,${voicePreview.audioBase64}`}
+                  />
+                  <p className="setup-field-help">
+                    It should say this phrase naturally in Hong Kong Cantonese.
+                    If it reads character names, English, or Mandarin, choose
+                    another supported voice before generating lesson clips.
+                  </p>
+                </div>
+              )}
               <p className="setup-field-help">
                 Provider charges or free-tier limits apply when generating.
                 Local clips stay on this computer; connected mode uses private

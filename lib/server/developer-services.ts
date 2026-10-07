@@ -8,6 +8,17 @@ import { transcribeAudio } from "./speech";
 import { synthesize } from "./lesson-audio";
 import { curriculumSQL } from "../../scripts/seed-supabase";
 
+export async function previewLessonVoice(settings: Settings) {
+  const text = "你好，歡迎學廣東話。";
+  const bytes = await synthesize(text, settings);
+  return {
+    message:
+      "Lesson audio connected. Play the preview and check that it speaks Hong Kong Cantonese before generating lessons.",
+    text,
+    audioBase64: bytes.toString("base64"),
+  };
+}
+
 function database(settings: Settings) {
   if (!settings.databaseUrl)
     throw new Error("Add the database connection string first.");
@@ -55,8 +66,7 @@ export async function testService(
     return "AI generation connected. This test uses a small provider request.";
   }
   if (service === "tts") {
-    await synthesize("你好，歡迎學廣東話。", settings);
-    return "Lesson audio connected. A short Cantonese voice clip was generated for this test.";
+    return (await previewLessonVoice(settings)).message;
   }
   if (service === "speech") {
     if (!settings.speechKey) throw new Error("Add a speech API key first.");

@@ -14,6 +14,7 @@ import {
 import { recordingToWav } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
+import { exerciseAudioText } from "@/lib/lesson-audio";
 import { useApp } from "./app-provider";
 export const typeLabels: Record<Exercise["type"], string> = {
   flashcard: "Meet the words",
@@ -84,7 +85,12 @@ export function ExerciseRenderer({
         </>
       )}
       {["listen_choose", "speak"].includes(e.type) && (
-        <ListenButton lesson={lesson} text={e.prompt} />
+        <ListenButton lesson={lesson} text={exerciseAudioText(e)} />
+      )}
+      {e.type === "speak" && e.answer !== e.prompt && (
+        <p className="help-text">
+          Say: <strong>{e.answer}</strong>
+        </p>
       )}
       {isChoice && (
         <div className="exercise-options">
@@ -417,7 +423,7 @@ function Speaking({
       const result = await request("/api/transcribe", form);
       setNote(
         result.available
-          ? `Recognized: ${result.recognized}\n${result.message}\n${result.note}`
+          ? `Expected: ${result.expected || exercise.answer}\nRecognized: ${result.recognized}\n${result.message}\n${result.note}`
           : result.message,
       );
     } catch (e) {

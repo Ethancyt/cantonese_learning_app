@@ -40,7 +40,7 @@ test("Knowlez uses documented JSON and X-API-Key contracts, saves reusable MP3s,
   await saveSettings({
     ttsProvider: "knowlez",
     ttsUrl: "https://api-tts.knowlez.com/v1/tts/synthesise",
-    ttsVoice: "af_bella",
+    ttsVoice: "test-only-cantonese-voice",
     ttsKey: "test-only-knowlez-tts-canary",
     speechProvider: "knowlez",
     speechUrl: "https://api-stt.knowlez.com/v1/stt/transcribe",
@@ -106,6 +106,18 @@ test("Knowlez uses documented JSON and X-API-Key contracts, saves reusable MP3s,
   lesson.id = "knowlez-audio-draft";
   lesson.createdBy = crypto.randomUUID();
   lesson.status = "under_review";
+  await saveSettings({ ttsVoice: "af_bella" });
+  const beforeBlocked = voiceCalls;
+  await assert.rejects(
+    () => generateLessonAudio(null, lesson),
+    /af_bella is not verified for Cantonese/,
+  );
+  assert.equal(
+    voiceCalls,
+    beforeBlocked,
+    "the default voice cannot generate Cantonese lesson clips or incur a request",
+  );
+  await saveSettings({ ttsVoice: settings.ttsVoice });
   let result = await generateLessonAudio(null, lesson);
   while (result.remaining)
     result = await generateLessonAudio(null, result.lesson);

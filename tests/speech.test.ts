@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { transcribeAudio } from "../lib/server/speech";
 import { readSettings } from "../lib/server/settings";
 import { encodePcmWav } from "../lib/audio-recording";
+import { speakingFeedback } from "../lib/ai/feedback";
+
+test("spoken-word feedback shows the expected target and distinguishes matching from different words", () => {
+  const correct = speakingFeedback("我係學生。", "我係學生！");
+  assert.equal(correct.expected, "我係學生。");
+  assert.equal(correct.matches, true);
+  assert.equal(speakingFeedback("我係學生。", "我係老師。").matches, false);
+  assert.match(correct.note, /not tone accuracy/);
+});
 
 test("Azure Cantonese STT sends PCM audio and handles word recognition without exposing provider errors", async (t) => {
   const original = globalThis.fetch;

@@ -1,4 +1,10 @@
-import type { Lesson } from "./schema";
+import type { Exercise, Lesson } from "./schema";
+
+export function exerciseAudioText(exercise: Exercise) {
+  return exercise.type === "speak"
+    ? exercise.answer || exercise.prompt
+    : exercise.prompt;
+}
 
 // Speak complete Cantonese phrases, never English activity instructions or Jyutping.
 export function lessonAudioTexts(lesson: Lesson): string[] {
@@ -10,7 +16,7 @@ export function lessonAudioTexts(lesson: Lesson): string[] {
     ]) || []),
     ...lesson.exercises
       .filter((e) => ["listen_choose", "speak"].includes(e.type))
-      .map((e) => e.prompt),
+      .map(exerciseAudioText),
   ];
   return [
     ...new Set(

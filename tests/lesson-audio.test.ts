@@ -4,12 +4,28 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { seedLessons } from "../lib/seeds";
-import { lessonAudioTexts, retainedAudio } from "../lib/lesson-audio";
+import {
+  exerciseAudioText,
+  lessonAudioTexts,
+  retainedAudio,
+} from "../lib/lesson-audio";
 import {
   initializeDeveloper,
   saveSettings,
   readSettings,
 } from "../lib/server/settings";
+
+test("speaking reference audio uses the checked answer rather than activity instructions", () => {
+  const lesson = structuredClone(seedLessons[0]);
+  const speaking = lesson.exercises.find((e) => e.type === "speak")!;
+  speaking.prompt = "請講以下句子：我係學生。";
+  speaking.answer = "我係學生。";
+  assert.equal(exerciseAudioText(speaking), speaking.answer);
+  assert.ok(lessonAudioTexts(lesson).includes(speaking.answer));
+  assert.equal(lessonAudioTexts(lesson).includes(speaking.prompt), false);
+  const listening = lesson.exercises.find((e) => e.type === "listen_choose")!;
+  assert.equal(exerciseAudioText(listening), listening.prompt);
+});
 
 test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures and invalidates edited text", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cantonese-audio-unit-"));
