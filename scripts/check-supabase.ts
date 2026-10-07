@@ -1,12 +1,14 @@
+import { readSettings } from "../lib/server/settings";
 import { existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 async function main() {
   if (existsSync(".env.local")) process.loadEnvFile(".env.local");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const settings = await readSettings();
+  const url = settings.supabaseUrl;
+  const key = settings.supabaseKey;
   if (!url || !key)
     throw new Error(
-      "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.",
+      "Add the Supabase project URL and public key in Developer setup.",
     );
   const endpoint = new URL(url);
   if (
@@ -35,9 +37,9 @@ async function main() {
   console.log(
     "Supabase Auth and the lesson table are reachable. Sign in with a test student and volunteer to validate account permissions and module data.",
   );
-  if (process.env.APP_MODE !== "supabase")
+  if (settings.mode !== "supabase")
     console.log(
-      "Set APP_MODE=supabase and restart the app to use this connection.",
+      "Select Connected accounts in Developer setup and save to use this connection.",
     );
 }
 main().catch((e) => {

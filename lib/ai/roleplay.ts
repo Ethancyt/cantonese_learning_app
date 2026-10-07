@@ -11,7 +11,7 @@ export async function roleplay(
   lesson: Lesson,
   messages: { role: "user" | "assistant"; content: string }[],
 ) {
-  const ai = provider();
+  const ai = await provider();
   const turn = messages.filter((m) => m.role === "user").length;
   const word = lesson.vocabulary[turn % lesson.vocabulary.length];
   const last = messages.filter((m) => m.role === "user").at(-1)?.content;

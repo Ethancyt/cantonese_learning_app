@@ -6,8 +6,10 @@ import {
   useState,
   ReactNode,
   useCallback,
+  useMemo,
 } from "react";
-import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Lesson, Attempt, Completion, Source } from "@/lib/schema";
 import { mastery } from "@/lib/progress";
 type Data = {
@@ -29,14 +31,11 @@ type Data = {
     difficult: ReturnType<typeof mastery>;
   };
 };
-const authClient =
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      )
-    : null;
+type RuntimeConfig = {
+  mode: string;
+  developerAvailable: boolean;
+  supabase: { url: string; key: string } | null;
+};
 const Context = createContext<{
   data: Data | null;
   error: string;
@@ -44,7 +43,9 @@ const Context = createContext<{
   refresh: () => Promise<void>;
   request: (path: string, body?: unknown) => Promise<any>;
   switchRole: (role: string) => Promise<void>;
-  auth: typeof authClient;
+  auth: SupabaseClient | null;
+  developerAvailable: boolean;
+  reloadConfiguration: () => Promise<void>;
 }>({
   data: null,
   error: "",
@@ -52,29 +53,59 @@ const Context = createContext<{
   refresh: async () => {},
   request: async () => {},
   switchRole: async () => {},
-  auth: authClient,
+  auth: null,
+  developerAvailable: false,
+  reloadConfiguration: async () => {},
 });
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [config, setConfig] = useState<RuntimeConfig | null>(null),
+    [revision, setRevision] = useState(0);
+  const authClient = useMemo(
+    () =>
+      config?.supabase
+        ? createClient(config.supabase.url, config.supabase.key)
+        : null,
+    [config?.supabase?.url, config?.supabase?.key],
+  );
+  const reloadConfiguration = useCallback(async () => {
+    setLoading(true);
+    setData(null);
+    try {
+      const response = await fetch("/api/config", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load service settings.");
+      setConfig(await response.json());
+      setRevision((n) => n + 1);
+    } catch (e) {
+      setError((e as Error).message);
+      setLoading(false);
+    }
+  }, []);
+
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
-  const request = useCallback(async (path: string, body?: unknown) => {
-    const session = authClient
-      ? (await authClient.auth.getSession()).data.session
-      : null;
-    const isForm = body instanceof FormData;
-    const r = await fetch(path, {
-      method: body ? "POST" : "GET",
-      headers: {
-        ...(body && !isForm ? { "Content-Type": "application/json" } : {}),
-        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
-    });
-    const json = await r.json();
-    if (!r.ok) throw new Error(json.error || "Request failed.");
-    return json;
-  }, []);
+  const request = useCallback(
+    async (path: string, body?: unknown) => {
+      const session = authClient
+        ? (await authClient.auth.getSession()).data.session
+        : null;
+      const isForm = body instanceof FormData;
+      const r = await fetch(path, {
+        method: body ? "POST" : "GET",
+        headers: {
+          ...(body && !isForm ? { "Content-Type": "application/json" } : {}),
+          ...(session
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || "Request failed.");
+      return json;
+    },
+    [authClient],
+  );
   const refresh = useCallback(async () => {
     try {
       setData(await request("/api/data"));
@@ -86,12 +117,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [request]);
   useEffect(() => {
+    reloadConfiguration();
+  }, [reloadConfiguration]);
+  useEffect(() => {
+    if (!config) return;
     refresh();
     const sub = authClient?.auth.onAuthStateChange(() => {
       setTimeout(refresh, 0);
     });
     return () => sub?.data.subscription.unsubscribe();
-  }, [refresh]);
+  }, [refresh, revision, !!config]);
   const switchRole = async (role: string) => {
     await request("/api/data", { action: "role", role });
     await refresh();
@@ -106,6 +141,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refresh,
         switchRole,
         auth: authClient,
+        developerAvailable: config?.developerAvailable || false,
+        reloadConfiguration,
       }}
     >
       {children}
@@ -165,6 +202,9 @@ export function DataBoundary({ children }: { children: ReactNode }) {
             <p>{note}</p>
           </form>
         )}
+        <Link className="btn secondary" href="/developer">
+          Developer setup
+        </Link>
         <button className="btn secondary" onClick={refresh}>
           Try again
         </button>

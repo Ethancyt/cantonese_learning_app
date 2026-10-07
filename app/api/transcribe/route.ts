@@ -1,3 +1,4 @@
+import { readSettings } from "@/lib/server/settings";
 import { NextRequest, NextResponse } from "next/server";
 import { identity, guard, failure } from "@/lib/server/security";
 import { readData } from "@/lib/server/repository";
@@ -6,7 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const user = await identity(req);
     guard(req, user.id, 8);
-    if (!process.env.SPEECH_API_KEY)
+    const settings = await readSettings();
+    if (!settings.speechKey)
       return NextResponse.json({
         available: false,
         message:
@@ -42,18 +44,14 @@ export async function POST(req: NextRequest) {
       throw new Error("Invalid recording.");
     const upload = new FormData();
     upload.set("file", file);
-    upload.set("model", process.env.SPEECH_MODEL || "whisper-1");
+    upload.set("model", settings.speechModel);
     upload.set("language", "zh");
-    const response = await fetch(
-      process.env.SPEECH_API_URL ||
-        "https://api.openai.com/v1/audio/transcriptions",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.SPEECH_API_KEY}` },
-        body: upload,
-        signal: AbortSignal.timeout(60000),
-      },
-    );
+    const response = await fetch(settings.speechUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${settings.speechKey}` },
+      body: upload,
+      signal: AbortSignal.timeout(60000),
+    });
     if (!response.ok) throw new Error("Transcription provider failed.");
     const result = await response.json();
     return NextResponse.json({

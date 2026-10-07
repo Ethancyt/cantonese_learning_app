@@ -1,16 +1,17 @@
+import { readSettings, hasDeveloper, validateEndpoints } from "./settings";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 const windows = new Map<string, { count: number; until: number }>();
 export async function identity(req: NextRequest) {
-  if (process.env.APP_MODE === "supabase") {
+  const settings = await readSettings();
+  if (settings.mode === "supabase") {
+    validateEndpoints(settings);
     const token = req.headers.get("authorization")?.replace(/^Bearer /, "");
     if (!token) throw new Error("Sign in to continue.");
-    const client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } },
-    );
+    const client = createClient(settings.supabaseUrl, settings.supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
     const { data, error } = await client.auth.getUser(token);
     if (error || !data.user) throw new Error("Sign in to continue.");
     const { data: profile } = await client
@@ -20,7 +21,12 @@ export async function identity(req: NextRequest) {
       .single();
     return { id: data.user.id, role: profile?.role || "student", client };
   }
-  if (process.env.NODE_ENV === "production" && process.env.APP_MODE !== "demo")
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.APP_MODE !== "demo" &&
+    process.env.LOCAL_DEVELOPER_SETUP !== "true" &&
+    !(await hasDeveloper())
+  )
     throw new Error(
       "Set APP_MODE=demo for an isolated demo, or configure Supabase authentication.",
     );

@@ -9,7 +9,11 @@ import {
 } from "../schema";
 import { makeExercises } from "../seeds";
 import { generationRules, provider } from "./provider";
-export function grounded(analysis: Analysis, source: Source) {
+export function grounded(
+  analysis: Analysis,
+  source: Source,
+  generatedByAI = false,
+) {
   for (const v of analysis.vocabulary) {
     const chunk = source.chunks.find((c) => c.text.includes(v.traditional));
     if (!chunk)
@@ -19,7 +23,7 @@ export function grounded(analysis: Analysis, source: Source) {
       sourceChunk: chunk.index,
       sourcePage: chunk.page,
       sourceExcerpt: chunk.text.slice(0, 1500),
-      generatedByAI: !!provider(),
+      generatedByAI,
     };
   }
   return analysis;
@@ -27,14 +31,14 @@ export function grounded(analysis: Analysis, source: Source) {
 export async function analyze(
   source: Source,
 ): Promise<{ analysis: Analysis; mode: string }> {
-  const ai = provider();
+  const ai = await provider();
   if (ai) {
     const result = await ai.json(generationRules, {
       task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
       source,
     });
     return {
-      analysis: grounded(analysisSchema.parse(result), source),
+      analysis: grounded(analysisSchema.parse(result), source, true),
       mode: "AI-assisted",
     };
   }
@@ -110,10 +114,10 @@ export async function generate(
   },
   references: Lesson[],
 ): Promise<{ lesson: Lesson; mode: string }> {
-  grounded(analysis, source);
   const id = crypto.randomUUID(),
     now = new Date().toISOString();
-  const ai = provider();
+  const ai = await provider();
+  grounded(analysis, source, !!ai);
   if (!ai && settings.level !== "beginner")
     throw new Error(
       "Demo generation supports beginner practice. Connect an AI provider for other levels.",

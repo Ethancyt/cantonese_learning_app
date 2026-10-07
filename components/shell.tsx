@@ -18,7 +18,7 @@ import { useApp } from "./app-provider";
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname(),
     router = useRouter();
-  const { data, switchRole, auth } = useApp();
+  const { data, switchRole, auth, developerAvailable } = useApp();
   const [open, setOpen] = useState(false),
     [error, setError] = useState("");
   const studio = path.startsWith("/studio");
@@ -74,6 +74,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <SlidersHorizontal size={20} />
             Volunteer Studio
           </Link>
+          {(developerAvailable || data?.role === "admin") && (
+            <Link
+              onClick={() => setOpen(false)}
+              className={path === "/developer" ? "active" : ""}
+              href="/developer"
+            >
+              <SlidersHorizontal size={20} />
+              Developer setup
+            </Link>
+          )}
         </nav>
         <div className="sidebar-note">
           <span className="note-illustration">✦</span>
@@ -115,13 +125,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Menu />
           </button>
           <div className="breadcrumb">
-            {studio
-              ? "Volunteer Content Studio"
-              : path === "/review"
-                ? "My wordbook"
-                : path.startsWith("/journey")
-                  ? "Your workshop journey"
-                  : "Your learning corner"}
+            {path === "/developer"
+              ? "Developer setup"
+              : studio
+                ? "Volunteer Content Studio"
+                : path === "/review"
+                  ? "My wordbook"
+                  : path.startsWith("/journey")
+                    ? "Your workshop journey"
+                    : "Your learning corner"}
             <span> / {studio ? "創作室" : "學習小天地"}</span>
           </div>
           <div className="header-right">

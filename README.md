@@ -4,7 +4,7 @@ A functional FYP prototype for **workshop → practice → reviewed digital cont
 
 ## Run immediately
 
-Requires Node.js 22.3 or newer (built and tested with Node.js 24).
+Requires Node.js 22.3 or newer (built and tested with Node.js 24). On Windows, double-click **Start-Workshop.cmd** to install dependencies, start the local website, and open Developer setup. You can also use the commands below.
 
 ```sh
 npm ci
@@ -15,10 +15,10 @@ The development server defaults to **demo mode** without any accounts or API key
 
 ```sh
 npm run build
-APP_MODE=demo npm start
+npm start
 ```
 
-Open the server in your usual local browser. Routes: `/` student dashboard, `/journey/[id]` practice, `/review` wordbook and personalized review, `/studio` Volunteer Content Studio.
+Open **http://localhost:3000** in your local browser. Visit **http://localhost:3000/developer** for browser-based API keys and Supabase setup. No `.env` editing is needed. Routes: `/` student dashboard, `/journey/[id]` practice, `/review` wordbook and personalized review, `/studio` Volunteer Content Studio.
 
 Demo content, drafts, immutable published versions, attempts, completions, reports, source text, and generation records persist in `.data/demo.json`. This file is ignored by Git. Demo learners have an anonymous HTTP-only cookie identity. Saved vocabulary bookmarks are kept on the current browser/device. Back up `.data` to retain a presentation; delete it only when intentionally resetting a disposable demo. The local atomic file store is for **one running server process** with persistent disk, not multi-instance or serverless production.
 
@@ -52,7 +52,7 @@ Analytics display **actual workspace activity**, not fabricated figures. An empt
 
 ## Real AI and speech (optional)
 
-Copy `.env.example` to `.env.local`, then enter credentials locally or securely in your deployment settings. Never commit keys.
+Use **Developer setup** at `/developer` to enter keys, endpoints, and model names. No file editing is needed. The environment variables below remain an optional fallback for advanced hosting; never commit credentials.
 
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`: enable source analysis, lesson generation and constrained roleplay through an OpenAI-compatible endpoint. A configured provider failure is shown as an error; it does not silently produce a fake AI result.
 - `SPEECH_API_KEY`, `SPEECH_API_URL`, `SPEECH_MODEL`: enable multipart audio transcription. Audio is sent only when the learner explicitly chooses **Check recognized words**; it is not stored by this app.
@@ -71,16 +71,22 @@ Culture: Wave goodbye when the workshop ends.
 
 Unstructured materials require the connected AI provider. Demo generation uses source-based **beginner templates**, and is explicitly labelled. Intermediate/advanced demo generation is disabled. Volunteers must verify Cantonese, Jyutping, pedagogical quality, source permissions and age suitability even when connected AI is used.
 
-## Supabase deployment
+## Browser-based developer setup
 
-1. Run `npm run supabase:prepare`. For a **new empty project**, run `supabase/setup-new-project.sql` in the Supabase SQL editor. For a project already using our original `schema.sql`, run **only** `supabase/upgrade-existing-project.sql`. Never run the new-project file on an existing installation.
-2. Both prepared files include the four module seeds. Updates add version 2 and preserve all earlier published snapshots, accounts, attempts, and workshop content. Rerunning the upgrade is safe.
-3. Set `APP_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Set the public variables before building Next.js. A publishable/anon key is intended for the client; never use a service-role key here.
-4. Create/invite accounts in Supabase Auth. New accounts get `student` profiles. Assign approved staff roles using trusted SQL, e.g. `update public.profiles set role='volunteer' where id='<approved-user-uuid>';`. Users cannot promote their own profiles.
-5. Run `npm run supabase:check` to verify Auth and schema reachability without exposing keys. Sign in through the app with an existing email/password account. Student/volunteer switching is available only in demo mode. The admin role can access all drafts, workshop analytics and unpublish journeys in Studio.
-6. Supabase RLS scopes drafts and sources to staff owners, published snapshots to signed-in learners, attempts/mastery to their student, and aggregate analytics to the staff member's workshops. The publishing RPC requires approval and atomically creates an immutable snapshot. Database triggers also recompute answer correctness and prevent completion before every activity is attempted.
+1. Start with `npm run dev` (or `npm run build` then `npm start`) and open `/developer`.
+2. Create a developer password of at least 12 characters. This account is separate from student/volunteer roles.
+3. Enter optional AI and speech keys, URLs, and model names. **Save & test** checks a real provider request, which may incur a small provider charge.
+4. For Supabase, open its dashboard from the page and create or select a project. Paste the project URL, public/publishable key, session-pooler PostgreSQL URI with database password, and secret/service-role key into the corresponding fields. Secret keys stay server-side; only the public key reaches the learner sign-in client.
+5. Click **Initialize learning database** to install tables, RLS policies, and the four module seeds. The app detects an existing installation and preserves published history and learner records. No SQL copying is required.
+6. Create test student, volunteer, and administrator accounts using the page. Accounts are immediately enabled for workshop use and role assignment is performed on the server.
+7. Select **Connected accounts · Supabase**, save, and open the learning page to sign in. Changes take effect immediately without rebuilding or restarting.
 
-The schema includes normalized profiles, workshops, journeys, source materials/chunks, vocabulary, exercises, lesson order, student attempts/mastery, generation records, published versions, completions and content reports. Vocabulary/exercise/source indexes are maintained by triggers. Lesson JSON is the canonical presentation contract. A private Storage bucket and owner policies are prepared; **the MVP currently retains extracted text, not the original binary upload**, so Storage file retention is an extension point. The initial UI stores workshop/topic labels with lessons; full workshop/user-management screens are outside this MVP. Reports are persisted; a dedicated moderation queue is a next step.
+Blank secret fields preserve saved credentials; **Remove saved credential** clears one on save. Sign out of developer settings with **Lock settings**. The first developer account can only be created through the local launcher, which binds to `127.0.0.1`; demo role switching does not authorize developer access. Hosted use requires HTTPS and an already initialized developer account. `npm run start:hosted` listens on all interfaces and disables first-time bootstrap. Supabase database connections use certificate-verified TLS and are restricted to the selected project’s direct or session-pooler endpoint.
+
+Settings persist encrypted with AES-256-GCM in `.data/developer.enc`; the separate `.data/developer.key` has restricted filesystem permissions and is required to decrypt them. The developer password is salted and hashed; settings use an expiring HTTP-only session. Both files are ignored by Git. Back up the complete `.data` folder privately, and use one persistent server instance. Ephemeral/serverless hosting needs a persistent secret store before it can support saved settings. Encryption protects stored file contents; the running server must still be trusted to use the keys. Existing environment variables remain an optional deployment fallback, with browser-saved settings taking precedence.
+
+The SQL preparation scripts remain available for advanced deployments, but the normal setup workflow uses the website. A new Supabase project and provider keys must still be obtained from their respective providers; the app does not create provider subscriptions or invent credentials.
+
 
 ## Validation
 
@@ -106,4 +112,4 @@ The four original topics now use coherent modules with four sections each: conte
 
 `lib/content/modules.ts` contains original workshop content. The EduHK page is linked as a reference, but its full outline and assets could not be retrieved in the cloud network used for this task. These four modules follow the topics specified in the project brief; they do not claim to reproduce the entire official Survival Cantonese package. Supply the remaining topic outline to extend the course accurately. Database lesson JSON remains canonical, with normalized module/section indexes and RLS added by migration 002.
 
-To update your Windows copy, stop its dev server, extract the updated source files into the existing folder, preserve `.env.local` and `.data`, then run `npm ci` and `npm run dev`. Existing demo version 1 progress is preserved and the new curriculum appears as version 2. Your local Windows filesystem cannot be modified from this cloud workspace.
+To update your Windows Git checkout, stop its dev server and run `git pull origin main`. Double-click `Start-Workshop.cmd` to install dependencies and open setup, or run `npm ci` and `npm run dev`. Preserve `.data` and any existing `.env.local`. Existing demo version 1 progress is preserved and the new curriculum appears as version 2. Your local Windows filesystem cannot be modified from this cloud workspace.
