@@ -52,8 +52,9 @@ export async function transcribeAudio(
   validateEndpoints(settings);
   if (!settings.speechKey) throw new Error("Add a speech API key first.");
   const azure = settings.speechProvider === "azure";
+  const knowlez = settings.speechProvider === "knowlez";
   let url: string,
-    body: FormData | Uint8Array<ArrayBuffer>,
+    body: FormData | Uint8Array<ArrayBuffer> | string,
     headers: Record<string, string>;
   if (azure) {
     const bytes = Buffer.from(await file.arrayBuffer());
@@ -63,6 +64,19 @@ export async function transcribeAudio(
     headers = {
       "Ocp-Apim-Subscription-Key": settings.speechKey,
       "Content-Type": `audio/wav; codecs=audio/pcm; samplerate=${rate}`,
+    };
+  } else if (knowlez) {
+    if (!file.size || file.size > 5 * 1024 * 1024)
+      throw new Error("Speech transcription needs a recording under 5 MB.");
+    url = settings.speechUrl;
+    body = JSON.stringify({
+      audio_base64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      filename: file.name,
+    });
+    // Let Knowlez detect the language: its documented hints do not identify Cantonese separately.
+    headers = {
+      "X-API-Key": settings.speechKey,
+      "Content-Type": "application/json",
     };
   } else {
     url = settings.speechUrl;
@@ -89,7 +103,7 @@ export async function transcribeAudio(
     throw new Error(
       speechRejection(
         response.status,
-        azure ? "Azure Speech" : "Voice provider",
+        azure ? "Azure Speech" : knowlez ? "Knowlez" : "Voice provider",
         "Speech transcription",
       ),
     );

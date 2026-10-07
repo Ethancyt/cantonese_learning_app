@@ -38,7 +38,9 @@ export function clipIdentity(text: string, settings: Settings) {
           : settings.ttsVoice,
         settings.ttsProvider === "azure"
           ? "ssml-rate-minus-15"
-          : settings.ttsModel,
+          : settings.ttsProvider === "knowlez"
+            ? "knowlez-mp3-speed-0.85"
+            : settings.ttsModel,
       ]),
     )
     .digest("hex");
@@ -55,6 +57,7 @@ export async function synthesize(
   if (!text.trim() || text.length > 700)
     throw new Error("Lesson audio phrases must contain 1–700 characters.");
   const azure = settings.ttsProvider === "azure";
+  const knowlez = settings.ttsProvider === "knowlez";
   let response: Response;
   try {
     response = await fetch(
@@ -70,24 +73,37 @@ export async function synthesize(
               "User-Agent": "CantoneseLearningApp/1.0",
               "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
             }
-          : {
-              Authorization: `Bearer ${settings.ttsKey}`,
-              "Content-Type": "application/json",
-            },
+          : knowlez
+            ? {
+                "X-API-Key": settings.ttsKey,
+                "Content-Type": "application/json",
+              }
+            : {
+                Authorization: `Bearer ${settings.ttsKey}`,
+                "Content-Type": "application/json",
+              },
         body: azure
           ? `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text)}</prosody></voice></speak>`
-          : JSON.stringify({
-              model: settings.ttsModel,
-              voice: settings.ttsVoice,
-              input: text,
-              response_format: "mp3",
-              ...(settings.ttsModel.startsWith("gpt-4o")
-                ? {
-                    instructions:
-                      "Speak naturally in Hong Kong Cantonese. Keep the Cantonese wording; do not translate it into Mandarin.",
-                  }
-                : {}),
-            }),
+          : knowlez
+            ? JSON.stringify({
+                text,
+                voice: settings.ttsVoice,
+                format: "mp3",
+                speed: 0.85,
+                return: "audio",
+              })
+            : JSON.stringify({
+                model: settings.ttsModel,
+                voice: settings.ttsVoice,
+                input: text,
+                response_format: "mp3",
+                ...(settings.ttsModel.startsWith("gpt-4o")
+                  ? {
+                      instructions:
+                        "Speak naturally in Hong Kong Cantonese. Keep the Cantonese wording; do not translate it into Mandarin.",
+                    }
+                  : {}),
+              }),
         signal: AbortSignal.timeout(25000),
       },
     );
@@ -100,7 +116,7 @@ export async function synthesize(
     throw new Error(
       speechRejection(
         response.status,
-        azure ? "Azure Speech" : "Voice provider",
+        azure ? "Azure Speech" : knowlez ? "Knowlez" : "Voice provider",
         "Lesson audio",
       ),
     );
@@ -234,13 +250,17 @@ export async function generateLessonAudio(
     const clip: AudioClip = {
       id,
       text,
-      provider: settings.ttsProvider as "azure" | "compatible",
+      provider: settings.ttsProvider as "azure" | "compatible" | "knowlez",
       voice:
         settings.ttsProvider === "azure"
           ? settings.azureVoice
           : settings.ttsVoice,
       model:
-        settings.ttsProvider === "azure" ? "azure-neural" : settings.ttsModel,
+        settings.ttsProvider === "azure"
+          ? "azure-neural"
+          : settings.ttsProvider === "knowlez"
+            ? "knowlez-tts"
+            : settings.ttsModel,
       createdAt: new Date().toISOString(),
     };
     const previous = keep.findIndex((c) => c.text === text);

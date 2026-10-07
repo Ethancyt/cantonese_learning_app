@@ -119,6 +119,62 @@ export function DeveloperSetup() {
       "OpenRouter and Azure selected. Paste the matching provider keys below, then save. Keys for changed providers will be removed.",
     );
   }
+  function knowlezProviders() {
+    if (!form) return;
+    const clear: Secret[] = [];
+    if (form.aiUrl.replace(/\/$/, "") !== "https://openrouter.ai/api/v1")
+      clear.push("aiKey");
+    if (
+      form.speechProvider !== "knowlez" ||
+      form.speechUrl !== "https://api-stt.knowlez.com/v1/stt/transcribe"
+    )
+      clear.push("speechKey");
+    if (
+      form.ttsProvider !== "knowlez" ||
+      form.ttsUrl !== "https://api-tts.knowlez.com/v1/tts/synthesise"
+    )
+      clear.push("ttsKey");
+    setForm({
+      ...form,
+      aiUrl: "https://openrouter.ai/api/v1",
+      aiModel: "openai/gpt-4.1-mini",
+      speechProvider: "knowlez",
+      speechUrl: "https://api-stt.knowlez.com/v1/stt/transcribe",
+      ttsProvider: "knowlez",
+      ttsUrl: "https://api-tts.knowlez.com/v1/tts/synthesise",
+      ttsVoice: form.ttsProvider === "knowlez" ? form.ttsVoice : "af_bella",
+      ...Object.fromEntries(clear.map((key) => [key, ""])),
+    });
+    setRemoved((r) => [...new Set([...r, ...clear])]);
+    setNote(
+      "OpenRouter and Knowlez selected. Paste each subscription’s key below and save. Confirm a Cantonese voice with Knowlez before generating lesson audio.",
+    );
+  }
+  function speechProvider(value: ServiceSettings["speechProvider"]) {
+    if (form && value !== form.speechProvider) {
+      field("speechKey", "");
+      setRemoved((r) => [...new Set([...r, "speechKey" as const])]);
+    }
+    field("speechProvider", value);
+    if (value === "knowlez")
+      field("speechUrl", "https://api-stt.knowlez.com/v1/stt/transcribe");
+    else if (value === "compatible")
+      field("speechUrl", "https://api.openai.com/v1/audio/transcriptions");
+  }
+  function voiceProvider(value: ServiceSettings["ttsProvider"]) {
+    if (form && value !== form.ttsProvider) {
+      field("ttsKey", "");
+      setRemoved((r) => [...new Set([...r, "ttsKey" as const])]);
+    }
+    field("ttsProvider", value);
+    if (value === "knowlez") {
+      field("ttsUrl", "https://api-tts.knowlez.com/v1/tts/synthesise");
+      field("ttsVoice", "af_bella");
+    } else if (value === "compatible") {
+      field("ttsUrl", "https://api.openai.com/v1/audio/speech");
+      field("ttsVoice", "alloy");
+    }
+  }
   async function save() {
     if (!form) return;
     const payload: Record<string, unknown> = { ...form };
@@ -332,15 +388,25 @@ export function DeveloperSetup() {
               </label>
             </section>
             <section className="panel setup-card">
-              <h2>OpenRouter + Azure Speech</h2>
+              <h2>Choose your AI and speech services</h2>
               <p>
-                OpenRouter generates lesson text. Azure text-to-speech (TTS)
-                creates Listen clips; Azure speech-to-text (STT) recognizes
-                learners’ recordings. Paste the same Azure Speech resource key
-                in both speech key fields and use that resource’s actual region.
-                The Azure selections connect directly to Microsoft. No endpoint
-                URLs are needed.
+                OpenRouter generates lesson text. A Knowlez activation email
+                requires the Knowlez selection and subscription key. Choose
+                Azure Speech only for a resource key from Microsoft’s Azure
+                portal. Azure text-to-speech (TTS) creates Listen clips; Azure
+                speech-to-text (STT) recognizes learners’ recordings. Paste the
+                same Azure Speech resource key in both speech key fields and use
+                that resource’s actual region. The Azure selections connect
+                directly to Microsoft. No endpoint URLs are needed.
               </p>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy}
+                onClick={knowlezProviders}
+              >
+                Use OpenRouter + Knowlez
+              </button>{" "}
               <button
                 type="button"
                 className="btn secondary"
@@ -414,8 +480,13 @@ export function DeveloperSetup() {
                   <select
                     aria-label="Recognition provider"
                     value={form.speechProvider}
-                    onChange={(e) => field("speechProvider", e.target.value)}
+                    onChange={(e) =>
+                      speechProvider(
+                        e.target.value as ServiceSettings["speechProvider"],
+                      )
+                    }
                   >
+                    <option value="knowlez">Knowlez · subscription API</option>
                     <option value="azure">
                       Azure Speech · Hong Kong Cantonese
                     </option>
@@ -448,20 +519,31 @@ export function DeveloperSetup() {
                         onChange={(e) => field("speechUrl", e.target.value)}
                       />
                     </label>
-                    <label className="field">
-                      Speech model
-                      <input
-                        required
-                        value={form.speechModel}
-                        onChange={(e) => field("speechModel", e.target.value)}
-                      />
-                    </label>
+                    {form.speechProvider === "compatible" && (
+                      <label className="field">
+                        Speech model
+                        <input
+                          required
+                          value={form.speechModel}
+                          onChange={(e) => field("speechModel", e.target.value)}
+                        />
+                      </label>
+                    )}
+                    {form.speechProvider === "knowlez" && (
+                      <p className="setup-field-help">
+                        Use your api-stt subscription key. Audio is sent to
+                        Knowlez only when you check recognized words; language
+                        is detected automatically.
+                      </p>
+                    )}
                   </>
                 )}
                 {secret(
                   "speechKey",
                   "Speech API key",
-                  "Paste your Azure Speech resource key here for recognizing spoken words. With a compatible provider selected, use that provider’s transcription key.",
+                  form.speechProvider === "knowlez"
+                    ? "Paste the Knowlez api-stt subscription key here. Your api-tts subscription may require a separate key."
+                    : "Paste your Azure Speech resource key here for recognizing spoken words. With a compatible provider selected, use that provider’s transcription key.",
                 )}
                 <button
                   type="button"
@@ -489,8 +571,13 @@ export function DeveloperSetup() {
                 Voice provider
                 <select
                   value={form.ttsProvider}
-                  onChange={(e) => field("ttsProvider", e.target.value)}
+                  onChange={(e) =>
+                    voiceProvider(
+                      e.target.value as ServiceSettings["ttsProvider"],
+                    )
+                  }
                 >
+                  <option value="knowlez">Knowlez · subscription API</option>
                   <option value="disabled">Device voices only</option>
                   <option value="azure">
                     Azure Speech · Hong Kong Cantonese
@@ -528,7 +615,8 @@ export function DeveloperSetup() {
                   </label>
                 </div>
               )}
-              {form.ttsProvider === "compatible" && (
+              {(form.ttsProvider === "compatible" ||
+                form.ttsProvider === "knowlez") && (
                 <div className="form-grid">
                   <label className="field">
                     Voice API endpoint
@@ -538,13 +626,15 @@ export function DeveloperSetup() {
                       onChange={(e) => field("ttsUrl", e.target.value)}
                     />
                   </label>
-                  <label className="field">
-                    Voice model
-                    <input
-                      value={form.ttsModel}
-                      onChange={(e) => field("ttsModel", e.target.value)}
-                    />
-                  </label>
+                  {form.ttsProvider === "compatible" && (
+                    <label className="field">
+                      Voice model
+                      <input
+                        value={form.ttsModel}
+                        onChange={(e) => field("ttsModel", e.target.value)}
+                      />
+                    </label>
+                  )}
                   <label className="field">
                     Voice name
                     <input
@@ -552,17 +642,29 @@ export function DeveloperSetup() {
                       onChange={(e) => field("ttsVoice", e.target.value)}
                     />
                   </label>
-                  <p>
-                    Choose a model that supports Cantonese and preview every
-                    clip. OpenRouter chat settings are separate from this speech
-                    endpoint.
-                  </p>
+                  {form.ttsProvider === "knowlez" ? (
+                    <p className="setup-field-help">
+                      Knowlez’s documented default is af_bella. Its public docs
+                      do not confirm a Cantonese voice. Enter a Cantonese voice
+                      confirmed by Knowlez and preview the audio before
+                      publishing. Azure voice names are not guaranteed to work
+                      here.
+                    </p>
+                  ) : (
+                    <p>
+                      Choose a model that supports Cantonese and preview every
+                      clip. OpenRouter chat settings are separate from this
+                      speech endpoint.
+                    </p>
+                  )}
                 </div>
               )}
               {secret(
                 "ttsKey",
                 "Lesson voice API key",
-                "Paste your Azure Speech resource key here for generating Listen clips. You can use the same Azure key as STT. Compatible voice providers use their own key.",
+                form.ttsProvider === "knowlez"
+                  ? "Paste the Knowlez api-tts subscription key here. This connection uses X-API-Key; no Azure region is needed."
+                  : "Paste your Azure Speech resource key here for generating Listen clips. You can use the same Azure key as STT. Compatible voice providers use their own key.",
               )}
               <button
                 type="button"

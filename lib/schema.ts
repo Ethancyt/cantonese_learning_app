@@ -138,7 +138,7 @@ export const audioClipSchema = z
   .object({
     id: z.string().regex(/^[a-f0-9]{64}$/),
     text: z.string().min(1).max(700),
-    provider: z.enum(["azure", "compatible"]),
+    provider: z.enum(["azure", "compatible", "knowlez"]),
     voice: z.string().min(1).max(100),
     model: z.string().min(1).max(100),
     createdAt: z.string().datetime(),
