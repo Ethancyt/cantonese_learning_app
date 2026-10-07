@@ -8,8 +8,10 @@ import {
   Source,
 } from "../schema";
 import { makeExercises } from "../seeds";
-import { generationRules, provider } from "./provider";
+import { provider } from "./provider";
 import { normalizeAIProvenance } from "./provenance";
+import { normalizeAIActivities } from "./activities";
+import { validatedAI } from "./validated";
 export function grounded(
   analysis: Analysis,
   source: Source,
@@ -34,36 +36,38 @@ export async function analyze(
 ): Promise<{ analysis: Analysis; mode: string }> {
   const ai = await provider();
   if (ai) {
-    const result = await ai.json(generationRules, {
-      task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
-      source,
-      schema: {
-        learningObjectives: ["A source-based learning goal"],
-        vocabulary: [
-          {
-            id: "unique-id",
-            traditional: "Exact source vocabulary",
-            jyutping: "Jyutping with tone numbers",
-            english: "English meaning",
-            example: "Traditional Chinese example from the source",
-            exampleJyutping: "Example Jyutping",
-            exampleEnglish: "Example English meaning",
-          },
-        ],
-        expressions: ["Source expression"],
-        grammar: ["Source grammar point"],
-        dialogue: ["Source dialogue line"],
-        culturalNotes: [
-          { title: "Source note", body: "Source-based explanation" },
-        ],
-      },
-    });
-    return {
-      analysis: grounded(
-        analysisSchema.parse(normalizeAIProvenance(result)),
+    const result = await validatedAI(
+      ai,
+      {
+        task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
         source,
-        true,
-      ),
+        schema: {
+          learningObjectives: ["A source-based learning goal"],
+          vocabulary: [
+            {
+              id: "unique-id",
+              traditional: "Exact source vocabulary",
+              jyutping: "Jyutping with tone numbers",
+              english: "English meaning",
+              example: "Traditional Chinese example from the source",
+              exampleJyutping: "Example Jyutping",
+              exampleEnglish: "Example English meaning",
+            },
+          ],
+          expressions: ["Source expression"],
+          grammar: ["Source grammar point"],
+          dialogue: ["Source dialogue line"],
+          culturalNotes: [
+            { title: "Source note", body: "Source-based explanation" },
+          ],
+        },
+      },
+      analysisSchema,
+      normalizeAIProvenance,
+      "analysis",
+    );
+    return {
+      analysis: grounded(result, source, true),
       mode: "AI-assisted",
     };
   }
@@ -167,71 +171,89 @@ export async function generate(
           instruction: e.instruction,
         })),
       }));
-    const result = await ai.json(generationRules, {
-      task: "Create lesson. Use only selected exercise types. Return a single complete lesson object.",
-      source,
-      approvedAnalysis: analysis,
-      settings,
-      styleReferences: settings.references ? style : [],
-      schema: {
-        id,
-        title: "English title",
-        title_zh: "Traditional Chinese title",
-        description: "short",
-        level: settings.level,
-        estimated_minutes: settings.minutes,
-        icon: "☕",
-        topic: "topic",
-        workshop: source.filename,
-        availability: "available",
-        learningObjectives: analysis.learningObjectives,
-        vocabulary: analysis.vocabulary,
-        grammar: analysis.grammar,
-        culturalNotes: analysis.culturalNotes,
-        exercises: [
-          {
-            id: "unique",
-            type: settings.types[0],
-            instruction: "short",
-            prompt: "prompt",
-            jyutping: "Jyutping",
-            english: "meaning",
-            options: ["a", "b"],
-            answer: "a",
-            explanation: "short",
-            difficulty: 1,
-            tags: [analysis.vocabulary[0].traditional],
-            pairs: undefined,
-            tokens: undefined,
-            provenance: analysis.vocabulary[0].provenance,
-          },
-        ],
-        roleplay: {
-          scenario: "workshop",
-          studentRole: "learner",
-          aiRole: "buddy",
-          allowedVocabulary: analysis.vocabulary.map((v) => v.traditional),
-          goal: "simple",
+    lesson = await validatedAI(
+      ai,
+      {
+        task: "Create lesson. Use only selected exercise types. Return a single complete lesson object.",
+        activityRules: {
+          match:
+            "Include pairs:[{left,right}] with 2–5 Cantonese-to-English pairs from approvedAnalysis.vocabulary. Every left value and every right value must be unique. Do not repeat a word or meaning.",
+          sentence_order:
+            "Include tokens:string[] in the CORRECT answer order, not shuffled. tokens.join('') must equal answer exactly, including spaces and punctuation. The website shuffles their display.",
+          choice:
+            "For multiple_choice, listen_choose, conversation_choice, and scenario, include at least two distinct options. answer must exactly match one option.",
+          answers:
+            "Include a nonempty answer for fill_blank and speak. Use unique exercise IDs and keep source metadata inside provenance.",
         },
+        source,
+        approvedAnalysis: analysis,
+        settings,
+        styleReferences: settings.references ? style : [],
+        schema: {
+          id,
+          title: "English title",
+          title_zh: "Traditional Chinese title",
+          description: "short",
+          level: settings.level,
+          estimated_minutes: settings.minutes,
+          icon: "☕",
+          topic: "topic",
+          workshop: source.filename,
+          availability: "available",
+          learningObjectives: analysis.learningObjectives,
+          vocabulary: analysis.vocabulary,
+          grammar: analysis.grammar,
+          culturalNotes: analysis.culturalNotes,
+          exercises: [
+            {
+              id: "unique",
+              type: settings.types[0],
+              instruction: "short",
+              prompt: "prompt",
+              jyutping: "Jyutping",
+              english: "meaning",
+              options: ["a", "b"],
+              answer: "a",
+              explanation: "short",
+              difficulty: 1,
+              tags: [analysis.vocabulary[0].traditional],
+              pairs: undefined,
+              tokens: undefined,
+              provenance: analysis.vocabulary[0].provenance,
+            },
+          ],
+          roleplay: {
+            scenario: "workshop",
+            studentRole: "learner",
+            aiRole: "buddy",
+            allowedVocabulary: analysis.vocabulary.map((v) => v.traditional),
+            goal: "simple",
+          },
+          status: "ai_generated",
+          version: 1,
+          origin: "ai",
+          createdBy: source.createdBy,
+          createdAt: now,
+          updatedAt: now,
+          sourceMaterialId: source.id,
+        },
+      },
+      lessonSchema,
+      (response) => ({
+        ...(normalizeAIActivities(
+          normalizeAIProvenance(response),
+          analysis,
+        ) as object),
+        id,
         status: "ai_generated",
         version: 1,
-        origin: "ai",
         createdBy: source.createdBy,
         createdAt: now,
         updatedAt: now,
         sourceMaterialId: source.id,
-      },
-    });
-    lesson = lessonSchema.parse({
-      ...(normalizeAIProvenance(result) as object),
-      id,
-      status: "ai_generated",
-      version: 1,
-      createdBy: source.createdBy,
-      createdAt: now,
-      updatedAt: now,
-      sourceMaterialId: source.id,
-    });
+      }),
+      "lesson",
+    );
   } else {
     const words = analysis.vocabulary;
     const first = words[0];

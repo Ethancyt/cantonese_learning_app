@@ -80,6 +80,8 @@ Culture: Wave goodbye when the workshop ends.
 
 Unstructured materials require the connected AI provider. Demo generation uses source-based **beginner templates**, and is explicitly labelled. Intermediate/advanced demo generation is disabled. Volunteers must verify Cantonese, Jyutping, pedagogical quality, source permissions and age suitability even when connected AI is used.
 
+AI generation validates activity structure before saving. Repeated matching pairs are deduplicated; ambiguous matches are rebuilt from reviewed vocabulary, and sentence-order tokens retain the intended answer exactly. Other schema errors trigger at most one AI correction request within a shared time limit; this can add one provider request. Invalid results are rejected with a readable message. All generated lessons remain unapproved drafts until human review.
+
 ## Generate and reuse lesson audio
 
 In **Developer setup**, choose **Azure Speech · Hong Kong Cantonese**, enter your Speech resource key and its region, and choose a Hong Kong voice (HiuMaan, HiuGaai, or WanLung). Alternatively configure an OpenAI-compatible `/audio/speech` endpoint, model, voice and key. Cantonese quality depends on that model: listen for unwanted Mandarin readings. OpenRouter chat generation remains separate from voice generation and learner transcription. **Save & test lesson voice** makes one short provider request; it does not assess linguistic quality.

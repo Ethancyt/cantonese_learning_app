@@ -30,7 +30,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
   );
   const baseline = (await analyze(source)).analysis;
   const settings = {
-    types: ["flashcard", "speak", "listen_choose"],
+    types: ["flashcard", "speak", "listen_choose", "match", "sentence_order"],
     level: "beginner",
     minutes: 5,
     age: "Adults",
@@ -76,6 +76,14 @@ test("AI analysis and generation accept flat source metadata while preserving st
     vocabulary: template.vocabulary.map(flatten),
     exercises: template.exercises.map(flatten),
   };
+  const dirty = response as typeof template;
+  dirty.exercises.find((e) => e.type === "match")!.pairs = [
+    { left: "奶茶", right: "Milk tea" },
+    { left: "奶茶", right: "Wrong duplicate" },
+  ];
+  const sentence = dirty.exercises.find((e) => e.type === "sentence_order")!;
+  sentence.answer = "我想要奶茶。";
+  sentence.tokens = ["奶茶", "我", "想要"];
   const generated = await generate(source, analyzed.analysis, settings, []);
   assert.equal(generated.lesson.status, "ai_generated");
   assert.ok(
@@ -85,6 +93,22 @@ test("AI analysis and generation accept flat source metadata while preserving st
         e.provenance.sourceMaterialId === source.id,
     ),
   );
+  const matching = generated.lesson.exercises.find((e) => e.type === "match")!;
+  assert.equal(
+    new Set(matching.pairs!.map((p) => p.left)).size,
+    matching.pairs!.length,
+  );
+  assert.ok(
+    matching.pairs!.every((p) =>
+      analyzed.analysis.vocabulary.some(
+        (v) => v.traditional === p.left && v.english === p.right,
+      ),
+    ),
+  );
+  const ordered = generated.lesson.exercises.find(
+    (e) => e.type === "sentence_order",
+  )!;
+  assert.equal(ordered.tokens!.join(""), "我想要奶茶。");
 
   const invalid = structuredClone(response) as typeof template;
   (invalid.exercises[0] as unknown as Record<string, unknown>).sourceExcerpt =
@@ -99,7 +123,10 @@ test("AI analysis and generation accept flat source metadata while preserving st
   (extra.vocabulary[0] as Record<string, unknown>).unexpectedField =
     "still invalid";
   response = extra;
-  await assert.rejects(() => analyze(source), /unrecognized_keys/);
+  await assert.rejects(
+    () => analyze(source),
+    /Generated analysis did not pass validation/,
+  );
   response = {
     ...flatAnalysis,
     vocabulary: [{ ...flatAnalysis.vocabulary[0], traditional: "不存在的詞" }],

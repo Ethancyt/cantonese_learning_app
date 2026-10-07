@@ -1,10 +1,14 @@
 import { readSettings, Settings } from "../server/settings";
 export interface AIProvider {
-  json(system: string, input: unknown): Promise<unknown>;
+  json(
+    system: string,
+    input: unknown,
+    options?: { timeoutMs: number },
+  ): Promise<unknown>;
 }
 export class CompatibleProvider implements AIProvider {
   constructor(private settings: Settings) {}
-  async json(system: string, input: unknown) {
+  async json(system: string, input: unknown, options?: { timeoutMs: number }) {
     const response = await fetch(
       `${this.settings.aiUrl.replace(/\/$/, "")}/chat/completions`,
       {
@@ -22,7 +26,7 @@ export class CompatibleProvider implements AIProvider {
             { role: "user", content: JSON.stringify(input) },
           ],
         }),
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(options?.timeoutMs ?? 60000),
       },
     );
     if (!response.ok)
