@@ -54,6 +54,8 @@ Analytics display **actual workspace activity**, not fabricated figures. An empt
 
 ## Real AI and speech (optional)
 
+For upload-ready classroom materials in TXT, Word, and PDF formats, see [sample-materials](sample-materials/README.md). Start with the short speech-test file, then try the full lesson on greetings and introductions.
+
 Use **Developer setup** at `/developer` to enter keys, endpoints, and model names. New setups default to **OpenRouter** for lesson AI and **Azure Speech** for Cantonese TTS and STT. Existing saved provider choices are preserved; use **Use OpenRouter + Azure defaults** on that page to switch. The button clears credentials for changed providers when saved, while preserving Supabase settings. No file editing is needed. The environment variables below remain an optional fallback for advanced hosting; never commit credentials.
 
 

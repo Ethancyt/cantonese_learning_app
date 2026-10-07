@@ -1,0 +1,126 @@
+CLASSROOM INTRODUCTIONS — BEGINNER CANTONESE
+課室見面：打招呼同自我介紹
+
+Original sample teaching material for a 15-minute university workshop.
+Traditional Chinese + Jyutping tone numbers + English support.
+阿欣 and 阿明 are fictional classroom characters. Learners can use these names.
+
+Goal: Greet a teacher or classmate in Cantonese.
+Goal: Introduce a fictional character and ask their name.
+Goal: Say whether someone is a student or teacher.
+Goal: Say which language a character studies and likes.
+
+CORE VOCABULARY
+Format: Traditional Chinese | Jyutping | English
+你好 | nei5 hou2 | Hello
+早晨 | zou2 san4 | Good morning
+再見 | zoi3 gin3 | Goodbye
+我 | ngo5 | I / me
+你 | nei5 | You
+係 | hai6 | To be / yes
+唔係 | m4 hai6 | Not to be / no
+叫 | giu3 | To be called
+咩 | me1 | What
+名 | meng2 | Name (colloquial pronunciation)
+老師 | lou5 si1 | Teacher
+學生 | hok6 saang1 | Student
+同學 | tung4 hok6 | Classmate
+學 | hok6 | To learn / study
+中文 | zung1 man2 | Chinese language
+英文 | jing1 man2 | English language
+廣東話 | gwong2 dung1 waa2 | Cantonese language
+鍾意 | zung1 ji3 | To like
+香港 | hoeng1 gong2 | Hong Kong
+香港人 | hoeng1 gong2 jan4 | A person from Hong Kong
+
+TARGET EXPRESSIONS
+我叫阿欣 | ngo5 giu3 aa3 jan1 | My name is Ah Yan
+你叫咩名呀 | nei5 giu3 me1 meng2 aa3 | What is your name?
+我係學生 | ngo5 hai6 hok6 saang1 | I am a student
+我唔係老師 | ngo5 m4 hai6 lou5 si1 | I am not a teacher
+你係唔係學生呀 | nei5 hai6 m4 hai6 hok6 saang1 aa3 | Are you a student?
+我學廣東話 | ngo5 hok6 gwong2 dung1 waa2 | I study Cantonese
+我鍾意學廣東話 | ngo5 zung1 ji3 hok6 gwong2 dung1 waa2 | I like learning Cantonese
+你呢 | nei5 ne1 | How about you?
+
+SECTION 1 — GREETINGS (3 MINUTES)
+Situation: A teacher meets two students before a morning lesson.
+Teaching point: Use 早晨 in the morning; use 你好 as a general greeting.
+Dialogue: 老師：早晨！
+Jyutping: lou5 si1: zou2 san4!
+English: Teacher: Good morning!
+Dialogue: 阿欣：老師，早晨！
+Jyutping: aa3 jan1: lou5 si1, zou2 san4!
+English: Ah Yan: Good morning, teacher!
+Dialogue: 阿明：你好！
+Jyutping: aa3 ming4: nei5 hou2!
+English: Ah Ming: Hello!
+Practice: Listen to 早晨 and choose "Good morning" rather than "Goodbye".
+Practice: Match 你好 to "Hello", 早晨 to "Good morning", and 再見 to "Goodbye".
+
+SECTION 2 — NAMES (4 MINUTES)
+Situation: Two fictional classmates introduce themselves.
+Teaching point: 我叫 + name introduces a person by name.
+Grammar: 我叫 + name means "My name is ...".
+Grammar: 你叫咩名呀？ asks "What is your name?". 咩 means "what"; 呀 makes the spoken question friendly.
+Dialogue: 阿欣：你好！我叫阿欣。你叫咩名呀？
+Jyutping: aa3 jan1: nei5 hou2! ngo5 giu3 aa3 jan1. nei5 giu3 me1 meng2 aa3?
+English: Ah Yan: Hello! My name is Ah Yan. What is your name?
+Dialogue: 阿明：我叫阿明。你好！
+Jyutping: aa3 ming4: ngo5 giu3 aa3 ming4. nei5 hou2!
+English: Ah Ming: My name is Ah Ming. Hello!
+Practice: Put 我 / 叫 / 阿欣 in order to form 我叫阿欣.
+Practice: Complete 我___阿欣 with 叫.
+Speaking target: 你叫咩名呀？
+
+SECTION 3 — STUDENT OR TEACHER? (4 MINUTES)
+Situation: A classmate checks whether Ah Yan is a student.
+Teaching point: 係 states an identity; 唔係 denies it.
+Grammar: 我係 + role means "I am ...". 我唔係 + role means "I am not ...".
+Grammar: 係唔係 forms a yes/no question. 你係唔係學生呀？ means "Are you a student?".
+Dialogue: 阿明：你係唔係學生呀？
+Jyutping: aa3 ming4: nei5 hai6 m4 hai6 hok6 saang1 aa3?
+English: Ah Ming: Are you a student?
+Dialogue: 阿欣：係，我係學生。我唔係老師。你呢？
+Jyutping: aa3 jan1: hai6, ngo5 hai6 hok6 saang1. ngo5 m4 hai6 lou5 si1. nei5 ne1?
+English: Ah Yan: Yes, I am a student. I am not a teacher. How about you?
+Dialogue: 阿明：我都係學生。
+Jyutping: aa3 ming4: ngo5 dou1 hai6 hok6 saang1.
+English: Ah Ming: I am a student too.
+Additional teaching note: 都 (dou1) means "also / too" in the final dialogue line.
+Practice: Choose 我係學生 when the fictional character is a student.
+Speaking target: 我係學生。
+
+SECTION 4 — WHAT DO YOU STUDY? (4 MINUTES)
+Situation: The same classmates talk about their language class.
+Teaching point: 學 describes study; 鍾意 describes liking something.
+Grammar: 我學 + language means "I study ...". 我鍾意學 + language means "I like learning ...".
+Dialogue: 阿欣：我學廣東話。你呢？
+Jyutping: aa3 jan1: ngo5 hok6 gwong2 dung1 waa2. nei5 ne1?
+English: Ah Yan: I study Cantonese. How about you?
+Dialogue: 阿明：我學英文。
+Jyutping: aa3 ming4: ngo5 hok6 jing1 man2.
+English: Ah Ming: I study English.
+Dialogue: 阿欣：我鍾意學廣東話！
+Jyutping: aa3 jan1: ngo5 zung1 ji3 hok6 gwong2 dung1 waa2!
+English: Ah Yan: I like learning Cantonese!
+Practice: Match 中文, 英文, and 廣東話 with their English meanings.
+Speaking target: 我學廣東話。
+Roleplay: Use Ah Yan and Ah Ming as fictional characters. Exchange greetings, ask a name, state a student identity, and say which language the character studies. Keep replies within this material.
+
+CULTURE AND PRONUNCIATION
+Culture: Address a teacher with 老師. A morning greeting such as 老師，早晨 is natural in a classroom.
+Culture: Cantonese 廣東話 and Mandarin are different spoken varieties; pronunciation examples for this workshop should use Hong Kong Cantonese.
+Pronunciation: Numbers 1–6 in Jyutping mark tones. Use Jyutping consistently; the reference screenshots use a different romanization system, Yale.
+Pronunciation: 名 has the colloquial reading meng2 in 你叫咩名呀. 廣東話 uses the conversational reading waa2 here.
+
+REVIEW ACTIVITIES AND ANSWER KEY
+1. Greeting: Which phrase means "Good morning"? Answer: 早晨.
+2. Vocabulary: Match 老師 / 學生 / 同學 to Teacher / Student / Classmate.
+3. Sentence order: 我 / 叫 / 阿欣. Answer: 我叫阿欣.
+4. Fill the blank: 我___學生. Answer: 係.
+5. Listening: Hear 我學廣東話 and choose "I study Cantonese".
+6. Speaking: Record 我係學生 and compare the recognized words with that phrase.
+7. Conversation: Reply to 你叫咩名呀？ with 我叫阿欣 or 我叫阿明.
+8. Scenario: Greet your fictional teacher in the morning with 老師，早晨.
+

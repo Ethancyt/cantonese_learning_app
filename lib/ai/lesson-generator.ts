@@ -9,6 +9,7 @@ import {
 } from "../schema";
 import { makeExercises } from "../seeds";
 import { generationRules, provider } from "./provider";
+import { normalizeAIProvenance } from "./provenance";
 export function grounded(
   analysis: Analysis,
   source: Source,
@@ -36,9 +37,33 @@ export async function analyze(
     const result = await ai.json(generationRules, {
       task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
       source,
+      schema: {
+        learningObjectives: ["A source-based learning goal"],
+        vocabulary: [
+          {
+            id: "unique-id",
+            traditional: "Exact source vocabulary",
+            jyutping: "Jyutping with tone numbers",
+            english: "English meaning",
+            example: "Traditional Chinese example from the source",
+            exampleJyutping: "Example Jyutping",
+            exampleEnglish: "Example English meaning",
+          },
+        ],
+        expressions: ["Source expression"],
+        grammar: ["Source grammar point"],
+        dialogue: ["Source dialogue line"],
+        culturalNotes: [
+          { title: "Source note", body: "Source-based explanation" },
+        ],
+      },
     });
     return {
-      analysis: grounded(analysisSchema.parse(result), source, true),
+      analysis: grounded(
+        analysisSchema.parse(normalizeAIProvenance(result)),
+        source,
+        true,
+      ),
       mode: "AI-assisted",
     };
   }
@@ -198,7 +223,7 @@ export async function generate(
       },
     });
     lesson = lessonSchema.parse({
-      ...(result as object),
+      ...(normalizeAIProvenance(result) as object),
       id,
       status: "ai_generated",
       version: 1,
