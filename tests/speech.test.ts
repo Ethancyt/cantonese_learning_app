@@ -61,7 +61,7 @@ test("Azure Cantonese STT sends PCM audio and handles word recognition without e
   await assert.rejects(
     () => transcribeAudio(audio, settings),
     (e: Error) =>
-      /Speech transcription failed/.test(e.message) &&
+      /Speech transcription provider rejected.*401/.test(e.message) &&
       !e.message.includes(settings.speechKey),
   );
   const previous = calls;

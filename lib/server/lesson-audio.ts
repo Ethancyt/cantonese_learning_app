@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AudioClip, Lesson } from "../schema";
 import { lessonAudioTexts } from "../lesson-audio";
 import { readSettings, validateEndpoints, type Settings } from "./settings";
+import { speechRejection } from "./speech-errors";
 import { saveLesson } from "./repository";
 
 const bucket = "lesson-audio";
@@ -65,7 +66,8 @@ export async function synthesize(
         headers: azure
           ? {
               "Ocp-Apim-Subscription-Key": settings.ttsKey,
-              "Content-Type": "application/ssml+xml",
+              "Content-Type": "application/ssml+xml; charset=utf-8",
+              "User-Agent": "CantoneseLearningApp/1.0",
               "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
             }
           : {
@@ -73,7 +75,7 @@ export async function synthesize(
               "Content-Type": "application/json",
             },
         body: azure
-          ? `<speak version="1.0" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text)}</prosody></voice></speak>`
+          ? `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text)}</prosody></voice></speak>`
           : JSON.stringify({
               model: settings.ttsModel,
               voice: settings.ttsVoice,
@@ -96,7 +98,11 @@ export async function synthesize(
   }
   if (!response.ok)
     throw new Error(
-      "Lesson audio provider rejected the request. Check its key, voice, model, and quota.",
+      speechRejection(
+        response.status,
+        azure ? "Azure Speech" : "Voice provider",
+        "Lesson audio",
+      ),
     );
   if (
     !/audio\/(mpeg|mp3)|application\/octet-stream/i.test(

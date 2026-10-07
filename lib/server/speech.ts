@@ -1,3 +1,4 @@
+import { speechRejection } from "./speech-errors";
 import { type Settings, validateEndpoints } from "./settings";
 
 function validateAzureWav(bytes: Buffer) {
@@ -86,7 +87,11 @@ export async function transcribeAudio(
   }
   if (!response.ok)
     throw new Error(
-      "Speech transcription failed. Check the API key, region or endpoint, and provider quota.",
+      speechRejection(
+        response.status,
+        azure ? "Azure Speech" : "Voice provider",
+        "Speech transcription",
+      ),
     );
   let result: Record<string, unknown>;
   try {

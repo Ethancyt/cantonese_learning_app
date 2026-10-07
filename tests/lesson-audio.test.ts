@@ -57,6 +57,15 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     "https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1",
   );
   assert.match(calls[0].body, /zh-HK-HiuMaanNeural/);
+  assert.match(
+    calls[0].body,
+    /xmlns="http:\/\/www.w3.org\/2001\/10\/synthesis"/,
+  );
+  assert.equal(calls[0].headers.get("User-Agent"), "CantoneseLearningApp/1.0");
+  assert.equal(
+    calls[0].headers.get("Content-Type"),
+    "application/ssml+xml; charset=utf-8",
+  );
   assert.match(calls[0].body, /你好&lt;&amp;&quot;/);
   assert.equal(
     calls[0].headers.get("Ocp-Apim-Subscription-Key"),

@@ -6,6 +6,7 @@ import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
 import { seedLessons } from "../lib/seeds";
 async function main() {
+  let voiceStatus = 200;
   const audioFixture = await readFile("tests/fixtures/audio-test-tone.mp3");
   const calls: { path: string; authorization?: string; body: string }[] = [];
   const id = "11111111-1111-4111-8111-111111111111";
@@ -58,6 +59,11 @@ async function main() {
     if (pathname === "/v1/chat/completions")
       result = { choices: [{ message: { content: '{"connected":true}' } }] };
     else if (pathname === "/v1/audio/speech") {
+      if (voiceStatus !== 200) {
+        res.statusCode = voiceStatus;
+        res.end(JSON.stringify({ error: "developer-test-voice-key" }));
+        return;
+      }
       res.setHeader("Content-Type", "audio/mpeg");
       res.end(audioFixture);
       return;
@@ -179,6 +185,17 @@ async function main() {
     await expect(page.getByRole("status")).toContainText(
       "Lesson audio connected",
     );
+    voiceStatus = 401;
+    await page
+      .getByRole("button", { name: "Save & test lesson voice" })
+      .click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Voice provider HTTP 401" }),
+    ).toContainText("Authentication failed");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Voice provider HTTP 401" }),
+    ).not.toContainText("developer-test-voice-key");
+    voiceStatus = 200;
     await page.getByRole("button", { name: "Save & test Supabase" }).click();
     await expect(page.getByRole("status")).toContainText(
       "Supabase Auth and lesson tables",

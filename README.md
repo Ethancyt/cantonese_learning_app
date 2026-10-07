@@ -90,6 +90,8 @@ Local MP3s live in `.data/audio/`; Supabase mode stores MP3s in a private Storag
 
 This generates the **example voice learners hear**. Microphone transcription uses **Speech-to-text (STT)**, with Azure Cantonese recognition selected by default. Browser recordings are converted locally into mono 16 kHz PCM WAV before an explicit word-check request; the original recording stays on the device. Transcript matching does not grade Cantonese tones or phonetic pronunciation. Generation requires your provider credentials; no live voice provider or Supabase project is configured by this repository alone.
 
+If a speech provider rejects a request, the website displays its HTTP status without exposing its response body or your key. For Azure, **401** indicates authentication failure: copy a Speech resource key and use that resource’s exact region. **403** indicates access restrictions; check resource permissions, subscription status and networking. **400** indicates a request/voice format issue; update the app and choose a listed Hong Kong voice. **429** can mean quota, rate limits or temporary voice capacity; retry later and check usage limits. **5xx** indicates a provider service error. These messages identify the failure category; they do not verify your Azure account configuration.
+
 ## Browser-based developer setup
 
 1. Start with `npm run dev` (or `npm run build` then `npm start`) and open `/developer`.
