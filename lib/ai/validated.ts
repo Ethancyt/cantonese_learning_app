@@ -1,7 +1,12 @@
 import type { z } from "zod";
-import { analysisRules, generationRules, type AIProvider } from "./provider";
+import {
+  AIOutputLimitError,
+  analysisRules,
+  generationRules,
+  type AIProvider,
+} from "./provider";
 
-// One correction request at most, within the Studio route's 90-second budget.
+// Share one recovery request (validation or truncation) and one deadline.
 export async function validatedAI<S extends z.ZodTypeAny>(
   ai: AIProvider,
   input: Record<string, unknown>,
@@ -12,17 +17,37 @@ export async function validatedAI<S extends z.ZodTypeAny>(
   const started = Date.now();
   let request = input;
   let lastIssues: { path: PropertyKey[]; message: string }[] = [];
+  let truncated: AIOutputLimitError | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = 85000 - (Date.now() - started);
     if (remaining <= 1000) break;
-    const response = await ai.json(
-      kind === "analysis" ? analysisRules : generationRules,
-      request,
-      {
-        timeoutMs: Math.min(75000, remaining),
-        maxTokens: kind === "analysis" ? 6000 : 12000,
-      },
-    );
+    let response: unknown;
+    try {
+      response = await ai.json(
+        kind === "analysis" ? analysisRules : generationRules,
+        request,
+        {
+          timeoutMs: Math.min(75000, remaining),
+          maxTokens: kind === "analysis" ? 6000 : 12000,
+        },
+      );
+    } catch (error) {
+      if (!(error instanceof AIOutputLimitError)) throw error;
+      truncated = error;
+      if (attempt === 1) throw error;
+      request = {
+        ...input,
+        responseLimits: {
+          ...(input.responseLimits as object | undefined),
+          recovery:
+            kind === "analysis"
+              ? "The previous response exceeded the token limit. Return at most 12 key vocabulary entries and 3 short entries in each other collection. Keep examples to one short phrase and translations concise. Omit provenance and excerpts. Return a complete JSON object."
+              : "The previous response exceeded the token limit. Return one concise activity per selected type. Omit all server-populated fields and reviewed vocabulary. Use only short source quotes, one-sentence explanations, and short options. Return a complete JSON object.",
+        },
+      };
+      continue;
+    }
+    truncated = null;
     const parsed = schema.safeParse(normalize(response));
     if (parsed.success) return parsed.data;
     lastIssues = parsed.error.issues.map((issue) => ({
@@ -36,6 +61,7 @@ export async function validatedAI<S extends z.ZodTypeAny>(
       validationErrors: lastIssues.slice(0, 12),
     };
   }
+  if (truncated) throw truncated;
   if (
     lastIssues.some(
       (issue) =>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CompatibleProvider } from "../lib/ai/provider";
+import { AIOutputLimitError, CompatibleProvider } from "../lib/ai/provider";
 import { readSettings } from "../lib/server/settings";
 
 test("AI timeouts during connection and response-body reading return safe guidance", async (t) => {
@@ -53,10 +53,16 @@ test("AI requests bound output and report truncation and malformed JSON safely",
     connected: true,
   });
   finishReason = "length";
-  await assert.rejects(
-    provider.json("test", {}, options),
-    /exceeded the output limit/,
-  );
+  assert.deepEqual(await provider.json("test", {}, options), {
+    connected: true,
+  });
+  for (const truncated of ['{"connected":', undefined]) {
+    content = truncated as string;
+    await assert.rejects(
+      provider.json("test", {}, options),
+      AIOutputLimitError,
+    );
+  }
   finishReason = "stop";
   content = "private-malformed-response";
   await assert.rejects(provider.json("test", {}, options), (error: Error) => {
@@ -64,4 +70,32 @@ test("AI requests bound output and report truncation and malformed JSON safely",
     assert.doesNotMatch(error.message, /private-malformed-response/);
     return true;
   });
+});
+
+test("Studio disables extra reasoning only for OpenRouter requests", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const settings = await readSettings();
+  for (const aiUrl of [
+    "https://openrouter.ai/api/v1",
+    "https://example.com/v1",
+  ]) {
+    globalThis.fetch = async (_url, options) => {
+      const request = JSON.parse(String(options?.body));
+      assert.deepEqual(
+        request.reasoning,
+        aiUrl.includes("openrouter.ai") ? { enabled: false } : undefined,
+      );
+      return Response.json({
+        choices: [{ message: { content: '{"ok":true}' } }],
+      });
+    };
+    await new CompatibleProvider({ ...settings, aiUrl }).json(
+      "test",
+      {},
+      { timeoutMs: 1000, maxTokens: 6000 },
+    );
+  }
 });

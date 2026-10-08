@@ -138,7 +138,63 @@ test("AI analysis and generation accept flat source metadata while preserving st
   )!;
   assert.equal(ordered.tokens!.join(""), "我想要奶茶。");
 
-  const invalid = structuredClone(response) as typeof template;
+  const fullResponse = structuredClone(response) as typeof template;
+  const compact = {
+    title: fullResponse.title,
+    title_zh: fullResponse.title_zh,
+    description: fullResponse.description,
+    icon: fullResponse.icon,
+    topic: fullResponse.topic,
+    roleplay: {
+      scenario: fullResponse.roleplay.scenario,
+      studentRole: fullResponse.roleplay.studentRole,
+      aiRole: fullResponse.roleplay.aiRole,
+      goal: fullResponse.roleplay.goal,
+    },
+    exercises: fullResponse.exercises.map((exercise) => {
+      const normalized = (
+        normalizeAIProvenance({ exercises: [exercise] }) as {
+          exercises: typeof template.exercises;
+        }
+      ).exercises[0];
+      return {
+        ...normalized,
+        provenance: {
+          sourceChunk: normalized.provenance!.sourceChunk,
+          sourceExcerpt: analyzed.analysis.vocabulary[0].traditional,
+        },
+      };
+    }),
+  };
+  response = compact;
+  const compactResult = await generate(source, analyzed.analysis, settings, []);
+  assert.deepEqual(
+    compactResult.lesson.vocabulary,
+    analyzed.analysis.vocabulary,
+  );
+  assert.equal(compactResult.lesson.createdBy, source.createdBy);
+  assert.equal(compactResult.lesson.version, 1);
+  assert.equal(compactResult.lesson.origin, "ai");
+  assert.ok(
+    compactResult.lesson.exercises.every(
+      (e) => e.provenance?.sourceMaterialId === source.id,
+    ),
+  );
+  assert.deepEqual(
+    compactResult.lesson.roleplay.allowedVocabulary,
+    analyzed.analysis.vocabulary.map((v) => v.traditional),
+  );
+  const forged = structuredClone(compact);
+  Object.assign(forged.exercises[0].provenance, {
+    sourceMaterialId: "unrelated-source",
+  });
+  response = forged;
+  await assert.rejects(
+    () => generate(source, analyzed.analysis, settings, []),
+    /verified source provenance/,
+  );
+
+  const invalid = structuredClone(fullResponse) as typeof template;
   (invalid.exercises[0] as unknown as Record<string, unknown>).sourceExcerpt =
     "Invented source content";
   response = invalid;

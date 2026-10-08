@@ -10,7 +10,7 @@ import {
 import { makeExercises } from "../seeds";
 import { provider } from "./provider";
 import { normalizeAIProvenance } from "./provenance";
-import { normalizeAIActivities } from "./activities";
+import { completeLessonResponse } from "./lesson-response";
 import { validatedAI } from "./validated";
 function promptSource(source: Source) {
   return {
@@ -66,6 +66,8 @@ export async function analyze(
           vocabulary:
             "Select up to 20 key source words or phrases, without duplicates.",
           summaries: "Return up to 6 concise entries in each other collection.",
+          wording:
+            "Use short phrases and one short example per word. Keep English meanings and translations concise; do not add paragraphs or alternative examples.",
           provenance:
             "Omit provenance and source excerpts; the server assigns them after verification.",
         },
@@ -203,7 +205,16 @@ export async function generate(
     lesson = await validatedAI(
       ai,
       {
-        task: "Create lesson. Use only selected exercise types. Return a single complete lesson object.",
+        task: "Create lesson. Use only selected exercise types. Return the complete compact response matching schema; the server adds reviewed content and metadata.",
+        responseLimits: {
+          activities: `Return at most ${Math.max(settings.types.length, Math.min(20, Math.ceil(settings.minutes * 1.2)))} activities, including each selected type.`,
+          wording:
+            "One short instruction and one-sentence explanation per activity. At most 4 options or 5 matching pairs. Omit empty optional fields.",
+          provenance:
+            "Only sourceChunk and sourceExcerpt on each exercise; use an exact quote of at most 120 characters. Never copy whole source chunks.",
+          serverFields:
+            "Omit vocabulary, learningObjectives, grammar, culturalNotes, module, audio, authorship, IDs and version metadata at lesson level. The server preserves the reviewed analysis.",
+        },
         activityRules: {
           match:
             "Include pairs:[{left,right}] with 2–5 Cantonese-to-English pairs from approvedAnalysis.vocabulary. Every left value and every right value must be unique. Do not repeat a word or meaning.",
@@ -215,24 +226,20 @@ export async function generate(
             "Include a nonempty answer for fill_blank and speak. Use unique exercise IDs and keep source metadata inside provenance.",
         },
         source: promptSource(source),
-        approvedAnalysis: analysis,
+        approvedAnalysis: {
+          ...analysis,
+          vocabulary: analysis.vocabulary.map(
+            ({ provenance: _provenance, ...word }) => word,
+          ),
+        },
         settings,
         styleReferences: settings.references ? style : [],
         schema: {
-          id,
           title: "English title",
           title_zh: "Traditional Chinese title",
           description: "short",
-          level: settings.level,
-          estimated_minutes: settings.minutes,
           icon: "☕",
           topic: "topic",
-          workshop: source.filename,
-          availability: "available",
-          learningObjectives: analysis.learningObjectives,
-          vocabulary: analysis.vocabulary,
-          grammar: analysis.grammar,
-          culturalNotes: analysis.culturalNotes,
           exercises: [
             {
               id: "unique",
@@ -248,39 +255,23 @@ export async function generate(
               tags: [analysis.vocabulary[0].traditional],
               pairs: undefined,
               tokens: undefined,
-              provenance: analysis.vocabulary[0].provenance,
+              provenance: {
+                sourceChunk: analysis.vocabulary[0].provenance?.sourceChunk,
+                sourceExcerpt: analysis.vocabulary[0].traditional,
+              },
             },
           ],
           roleplay: {
             scenario: "workshop",
             studentRole: "learner",
             aiRole: "buddy",
-            allowedVocabulary: analysis.vocabulary.map((v) => v.traditional),
             goal: "simple",
           },
-          status: "ai_generated",
-          version: 1,
-          origin: "ai",
-          createdBy: source.createdBy,
-          createdAt: now,
-          updatedAt: now,
-          sourceMaterialId: source.id,
         },
       },
       lessonSchema,
-      (response) => ({
-        ...(normalizeAIActivities(
-          normalizeAIProvenance(response),
-          analysis,
-        ) as object),
-        id,
-        status: "ai_generated",
-        version: 1,
-        createdBy: source.createdBy,
-        createdAt: now,
-        updatedAt: now,
-        sourceMaterialId: source.id,
-      }),
+      (response) =>
+        completeLessonResponse(response, source, analysis, settings, id, now),
       "lesson",
     );
   } else {
