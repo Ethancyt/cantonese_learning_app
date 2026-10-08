@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { generationRules, type AIProvider } from "./provider";
+import { analysisRules, generationRules, type AIProvider } from "./provider";
 
 // One correction request at most, within the Studio route's 90-second budget.
 export async function validatedAI<S extends z.ZodTypeAny>(
@@ -15,9 +15,14 @@ export async function validatedAI<S extends z.ZodTypeAny>(
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = 85000 - (Date.now() - started);
     if (remaining <= 1000) break;
-    const response = await ai.json(generationRules, request, {
-      timeoutMs: Math.min(75000, remaining),
-    });
+    const response = await ai.json(
+      kind === "analysis" ? analysisRules : generationRules,
+      request,
+      {
+        timeoutMs: Math.min(75000, remaining),
+        maxTokens: kind === "analysis" ? 6000 : 12000,
+      },
+    );
     const parsed = schema.safeParse(normalize(response));
     if (parsed.success) return parsed.data;
     lastIssues = parsed.error.issues.map((issue) => ({

@@ -62,6 +62,13 @@ export async function analyze(
       ai,
       {
         task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
+        responseLimits: {
+          vocabulary:
+            "Select up to 20 key source words or phrases, without duplicates.",
+          summaries: "Return up to 6 concise entries in each other collection.",
+          provenance:
+            "Omit provenance and source excerpts; the server assigns them after verification.",
+        },
         source: promptSource(source),
         schema: {
           learningObjectives: ["A source-based learning goal"],

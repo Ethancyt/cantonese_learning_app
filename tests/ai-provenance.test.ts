@@ -52,7 +52,10 @@ test("AI analysis and generation accept flat source metadata while preserving st
   let queuedResponses: unknown[] = [];
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(String(options?.body));
-    assert.match(request.messages[0].content, /nested provenance object/);
+    assert.match(
+      request.messages[0].content,
+      /nested provenance object|Return no provenance or source excerpts/,
+    );
     const prompt = JSON.parse(request.messages[1].content);
     if (prompt.source)
       assert.equal(
