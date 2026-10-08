@@ -19,7 +19,7 @@ async function main() {
   const base = process.env.TEST_BASE_URL || "http://localhost:3001";
   await page.goto(base);
   await expect(
-    page.getByRole("heading", { name: "你好，little explorer" }),
+    page.getByRole("heading", { name: "My lessons", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: /Your after-class lessons/ }),
@@ -358,7 +358,9 @@ async function main() {
     page.getByRole("heading", { name: "好叻！You did it." }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Review my words" }).click();
-  await expect(page.getByRole("heading", { name: "今日要溫習" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Review today" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Start a 5-question review" }).click();
   await expect(page.locator(".exercise-panel")).toBeVisible();
   await page.goto(base);

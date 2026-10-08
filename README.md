@@ -1,4 +1,4 @@
-# Little Hong Kong · 一齊講廣東話
+# Cantonese Learning
 
 A functional FYP prototype for **workshop → practice → reviewed digital content**. Volunteers teach in person; learners use short Cantonese journeys afterward. The centrepiece is **upload → source review → generate → edit → approve → publish**.
 

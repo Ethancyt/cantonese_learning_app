@@ -7,9 +7,9 @@ import "./globals.css";
 import { AppProvider } from "@/components/app-provider";
 import { Shell } from "@/components/shell";
 export const metadata: Metadata = {
-  title: "Little Hong Kong · 一齊講廣東話",
+  title: "Cantonese Learning",
   description:
-    "Volunteers teach. Little explorers practise. Cantonese workshop journeys, made for Hong Kong.",
+    "Learn and practise Cantonese with workshop lessons, vocabulary review, and speaking feedback.",
 };
 export default function RootLayout({
   children,

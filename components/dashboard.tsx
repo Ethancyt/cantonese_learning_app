@@ -11,16 +11,17 @@ import {
   Volume2,
   ChevronRight,
   Check,
-  MapPin,
+  BookOpen,
 } from "lucide-react";
 import { useApp, DataBoundary } from "./app-provider";
-import { Harbour, JourneyArt } from "./illustrations";
+import { JourneyArt } from "./illustrations";
 import type { Lesson } from "@/lib/schema";
 import { lessonCompleted } from "@/lib/lesson-completion";
+import { lessonActivityProgress, lessonToContinue } from "@/lib/lesson-resume";
 import { useState, useEffect, useRef } from "react";
 export function Dashboard() {
   const { data } = useApp();
-  const [filter, setFilter] = useState("All journeys");
+  const [filter, setFilter] = useState("All lessons");
   if (!data)
     return (
       <DataBoundary>
@@ -28,23 +29,24 @@ export function Dashboard() {
       </DataBoundary>
     );
   const done = (lesson: Lesson) => lessonCompleted(lesson, data.completions);
-  const current = data.lessons.find((l) => !done(l)) || data.lessons[0];
-  const percent = current
-    ? Math.round(
-        (new Set(
-          data.attempts
-            .filter(
-              (a) => a.lessonId === current.id && a.version === current.version,
-            )
-            .map((a) => a.exerciseId),
-        ).size /
-          current.exercises.length) *
-          100,
-      )
-    : 0;
+  const current = lessonToContinue(
+    data.lessons,
+    data.attempts,
+    data.completions,
+  );
+  const currentProgress = current
+    ? lessonActivityProgress(current, data.attempts)
+    : null;
+  const nextExercise =
+    current && currentProgress && currentProgress.nextIndex >= 0
+      ? current.exercises[currentProgress.nextIndex]
+      : null;
+  const nextSection = current?.module?.sections.find(
+    (section) => nextExercise && section.exerciseIds.includes(nextExercise.id),
+  );
   const filtered = data.lessons.filter(
     (l) =>
-      filter === "All journeys" ||
+      filter === "All lessons" ||
       (filter === "From my workshop" && l.createdBy !== "system") ||
       (filter === "Completed" && done(l)),
   );
@@ -52,54 +54,81 @@ export function Dashboard() {
     <DataBoundary>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">LET’S MAKE A LITTLE PROGRESS</div>
-          <h1>
-            你好，little explorer <span className="wave">👋</span>
-          </h1>
-          <p>
-            A little Cantonese. A little confidence. A little closer to Hong
-            Kong.
-          </p>
+          <h1>My lessons</h1>
+          <p>Continue your practice or choose a lesson below.</p>
         </div>
-        <span className="date-tag">
-          <MapPin size={14} />
-          Hong Kong · 香港
-        </span>
       </div>
-      <section className="hero panel">
-        <div className="hero-copy">
-          <span className="pill light">
-            AFTER-CLASS PRACTICE <span>今日練習</span>
-          </span>
+      <section className="continue-lesson panel" aria-label="Continue lesson">
+        <div className="continue-icon" aria-hidden="true">
+          <BookOpen size={28} />
+        </div>
+        <div className="continue-copy">
+          <div className="eyebrow">
+            {current
+              ? currentProgress?.explored
+                ? "CONTINUE YOUR LESSON"
+                : "YOUR NEXT LESSON"
+              : data.lessons.length
+                ? "ALL LESSONS COMPLETED"
+                : "READY TO LEARN"}
+          </div>
           <h2>
-            Big adventures start
-            <br />
-            with a little <em>你好.</em>
+            {current?.title ||
+              (data.lessons.length
+                ? "Keep practising your vocabulary"
+                : "Your lessons will appear here")}
           </h2>
           <p>
-            You’ve learned it at your workshop.
-            <br />
-            Now let’s make it your own, one small step at a time.
+            {current
+              ? nextSection
+                ? `Up next: ${nextSection.title}`
+                : nextExercise
+                  ? `Up next: ${nextExercise.instruction}`
+                  : "All activities practised. Finish the lesson to save your completion."
+              : data.lessons.length
+                ? "Review your words or revisit a completed lesson below."
+                : "A volunteer can publish learning materials for you to practise."}
           </p>
+          {current && currentProgress && (
+            <div className="continue-progress">
+              <div
+                className="card-progress"
+                role="progressbar"
+                aria-label="Lesson progress"
+                aria-valuenow={currentProgress.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div style={{ width: `${currentProgress.percent}%` }} />
+              </div>
+              <span>
+                {currentProgress.explored} of {currentProgress.total} activities
+                practised · {currentProgress.percent}%
+              </span>
+            </div>
+          )}
+          {current && (
+            <div className="continue-meta">
+              <Clock size={14} />
+              {current.estimated_minutes} minute lesson
+            </div>
+          )}
+        </div>
+        {(current || data.lessons.length > 0) && (
           <Link
             className="btn"
-            href={current ? `/journey/${current.id}` : "/review"}
+            href={current ? `/journey/${current.id}?resume=1` : "/review"}
           >
-            {percent ? "Continue my journey" : "Let’s get started"}
+            {current
+              ? currentProgress?.explored
+                ? currentProgress.percent === 100
+                  ? "Finish lesson"
+                  : "Continue lesson"
+                : "Start lesson"
+              : "Review my words"}
             <ArrowRight size={18} />
           </Link>
-          <div className="hero-meta">
-            <Clock size={14} />
-            {current?.estimated_minutes || 5} minute practice<span>·</span>No
-            rush. Just you.
-          </div>
-        </div>
-        <div className="hero-art">
-          <Harbour />
-          <div className="harbour-label">
-            下一站：香港日常 <span>Next stop: everyday Hong Kong</span>
-          </div>
-        </div>
+        )}
       </section>
       <section className="stats-row">
         <div className="stat">
@@ -134,18 +163,16 @@ export function Dashboard() {
           <div>
             <strong>
               {data.stats.completed}
-              <small> journeys</small>
+              <small> lessons</small>
             </strong>
-            <span>Adventures completed</span>
+            <span>Lessons completed</span>
           </div>
         </div>
       </section>
       <section className="journeys-section">
         <div className="section-heading">
           <div>
-            <h2>
-              Your after-class lessons <span>課後練習</span>
-            </h2>
+            <h2>Your after-class lessons</h2>
             <p>
               Follow Lessons 1–4 alongside your Cantonese class, then review
               what you’ve learned.
@@ -156,25 +183,20 @@ export function Dashboard() {
           </span>
         </div>
         <div className="filter-row" role="group" aria-label="Filter journeys">
-          {["All journeys", "From my workshop", "Completed"].map((f) => (
+          {["All lessons", "From my workshop", "Completed"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={filter === f ? "selected" : ""}
             >
               {f}
-              {f === "All journeys" && <span>{data.lessons.length}</span>}
+              {f === "All lessons" && <span>{data.lessons.length}</span>}
             </button>
           ))}
         </div>
         <div className="journey-grid">
           {filtered.map((l, i) => {
-            const count = new Set(
-              data.attempts
-                .filter((a) => a.lessonId === l.id && a.version === l.version)
-                .map((a) => a.exerciseId),
-            ).size;
-            const progress = Math.round((count / l.exercises.length) * 100);
+            const progress = lessonActivityProgress(l, data.attempts).percent;
             return (
               <Link
                 className={`journey-card tone-${i % 4}`}
@@ -198,10 +220,12 @@ export function Dashboard() {
                 <div className="card-content">
                   <div className="card-topic">{l.topic}</div>
                   <h3>
-                    {l.title_zh}
+                    {l.title}
                     <ArrowUpRight size={20} />
                   </h3>
-                  <p className="card-english">{l.title}</p>
+                  <p className="card-english" lang="zh-HK">
+                    {l.title_zh}
+                  </p>
                   <p className="card-description">{l.description}</p>
                   <div className="card-details">
                     <Clock size={13} />
@@ -215,9 +239,9 @@ export function Dashboard() {
                   <div className="card-bottom">
                     <span>
                       {done(l)
-                        ? "Journey complete"
+                        ? "Lesson complete"
                         : progress
-                          ? `${progress}% explored`
+                          ? `${progress}% practised`
                           : "Ready when you are"}
                     </span>
                     <span>
@@ -248,9 +272,7 @@ export function Dashboard() {
       <section className="bottom-grid">
         <div className="word-card panel">
           <div className="section-heading">
-            <h3>
-              A little word for today <span>每日一詞</span>
-            </h3>
+            <h3>A word to practise</h3>
             <span className="word-tag">MANNERS</span>
           </div>
           <div className="word-detail">

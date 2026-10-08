@@ -4,11 +4,10 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
   LayoutGrid,
-  Heart,
   SlidersHorizontal,
   ArrowUpRight,
   Flame,
-  Sparkles,
+  UserRound,
   Menu,
   X,
   LogOut,
@@ -36,10 +35,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <Link href="/" className="brand">
-          <span className="brand-mark">粵</span>
-          <span>
-            Little Hong Kong<small>一齊講廣東話</small>
+          <span className="brand-mark" aria-hidden="true">
+            <BookOpen size={24} />
           </span>
+          <span>Cantonese Learning</span>
         </Link>
         <button
           aria-label="Close navigation"
@@ -48,7 +47,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         >
           <X />
         </button>
-        <p className="nav-label">YOUR LITTLE ADVENTURE</p>
+        <p className="nav-label">LEARNING</p>
         <nav>
           <Link
             onClick={() => setOpen(false)}
@@ -56,7 +55,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             href="/"
           >
             <LayoutGrid size={20} />
-            My journeys <span>探索</span>
+            My lessons
           </Link>
           <Link
             onClick={() => setOpen(false)}
@@ -64,7 +63,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             href="/review"
           >
             <BookOpen size={20} />
-            My wordbook <span>溫習</span>
+            My wordbook
           </Link>
           <Link
             onClick={() => setOpen(false)}
@@ -85,18 +84,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           )}
         </nav>
-        <div className="sidebar-note">
-          <span className="note-illustration">✦</span>
-          <h3>
-            Small steps.
-            <br />
-            More connection.
-          </h3>
-          <p>
-            Your workshop is the beginning. A little practice keeps it going.
-          </p>
-          <span className="tiny">學少少，講多啲。</span>
-        </div>
         <div className="sidebar-bottom">
           <div className="mode-chip">
             <span />
@@ -132,9 +119,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 : path === "/review"
                   ? "My wordbook"
                   : path.startsWith("/journey")
-                    ? "Your workshop journey"
-                    : "Your learning corner"}
-            <span> / {studio ? "創作室" : "學習小天地"}</span>
+                    ? "Lesson practice"
+                    : "My lessons"}
           </div>
           <div className="header-right">
             <span className="header-streak">
@@ -142,14 +128,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {data?.stats.streak || 0}
               <span>day streak</span>
             </span>
-            <span className="avatar">{studio ? "V" : "你"}</span>
+            <span className="avatar" aria-label="Account">
+              <UserRound size={18} />
+            </span>
           </div>
         </header>
         <main>{children}</main>
-        <footer>
-          Made for little conversations and big connections. <Heart size={12} />{" "}
-          Hong Kong, 香港
-        </footer>
+        <footer>Cantonese Learning · Workshop practice</footer>
       </div>
     </div>
   );

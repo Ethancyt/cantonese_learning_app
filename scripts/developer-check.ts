@@ -593,7 +593,7 @@ async function main() {
       .fill("student-password-test");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "你好，little explorer" }),
+      page.getByRole("heading", { name: "My lessons", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText("Connected account", { exact: true }),

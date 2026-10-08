@@ -167,9 +167,7 @@ export function Wordbook() {
       <div className="page-heading">
         <div>
           <div className="eyebrow">A LITTLE PRACTICE GOES A LONG WAY</div>
-          <h1>
-            今日要溫習 <span>🌱</span>
-          </h1>
+          <h1>Review today</h1>
           <p>Your workshop words, growing with you.</p>
         </div>
       </div>

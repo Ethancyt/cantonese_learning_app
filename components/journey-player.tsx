@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +14,7 @@ import {
 import { useApp, DataBoundary } from "./app-provider";
 import { ExerciseRenderer, typeLabels } from "./exercise-renderer";
 import { ModuleTeaching } from "./module-section";
+import { lessonActivityProgress } from "@/lib/lesson-resume";
 export function CulturalCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="culture-card panel">
@@ -23,7 +24,13 @@ export function CulturalCard({ title, body }: { title: string; body: string }) {
     </div>
   );
 }
-export function JourneyPlayer({ id }: { id: string }) {
+export function JourneyPlayer({
+  id,
+  resume = false,
+}: {
+  id: string;
+  resume?: boolean;
+}) {
   const { data, request, refresh } = useApp();
   const [index, setIndex] = useState<number | null>(null),
     [answer, setAnswer] = useState(""),
@@ -38,6 +45,40 @@ export function JourneyPlayer({ id }: { id: string }) {
     [reported, setReported] = useState(false);
   const [showTeaching, setShowTeaching] = useState(false);
   const lesson = data?.lessons.find((l) => l.id === id);
+  const resumed = useRef("");
+  useEffect(() => {
+    if (!resume || !lesson || !data) return;
+    const key = `${lesson.id}:${lesson.version}`;
+    if (resumed.current === key) return;
+    resumed.current = key;
+    const progress = lessonActivityProgress(lesson, data.attempts);
+    const next =
+      progress.nextIndex >= 0
+        ? progress.nextIndex
+        : lesson.exercises.length - 1;
+    if (next < 0) return;
+    const section = lesson.module?.sections.find((s) =>
+      s.exerciseIds.includes(lesson.exercises[next].id),
+    );
+    setIndex(next);
+    setAnswer("");
+    setReady(false);
+    setFeedback(null);
+    setError("");
+    setComplete(false);
+    setReported(false);
+    setShowTeaching(
+      !!section && section.exerciseIds[0] === lesson.exercises[next].id,
+    );
+    if (progress.nextIndex < 0) {
+      setShowTeaching(false);
+      setFeedback({
+        correct: true,
+        explanation:
+          "All activities practised. Finish the lesson to save your completion.",
+      });
+    }
+  }, [resume, lesson, data]);
   if (!data)
     return (
       <DataBoundary>

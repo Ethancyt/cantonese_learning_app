@@ -87,6 +87,7 @@ svg {
   letter-spacing: -0.5px;
 }
 .brand-mark {
+  flex-shrink: 0;
   height: 43px;
   width: 43px;
   border-radius: 13px 13px 13px 4px;
@@ -298,6 +299,87 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 15px;
   background: white;
+}
+.continue-lesson {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 28px;
+  background: #eef3e8;
+}
+.continue-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #dae7d4;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.continue-copy {
+  flex: 1;
+  min-width: 0;
+}
+.continue-copy h2 {
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 4px 0 8px;
+}
+.continue-copy p {
+  color: #657661;
+  font-size: 13px;
+}
+.continue-progress {
+  max-width: 440px;
+  margin-top: 18px;
+}
+.continue-progress .card-progress {
+  margin: 0 0 8px;
+}
+.continue-progress span,
+.continue-meta {
+  font-size: 12px;
+  color: #657661;
+}
+.continue-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.continue-lesson > .btn {
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .continue-lesson {
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .continue-copy {
+    flex-basis: calc(100% - 82px);
+  }
+  .continue-lesson > .btn {
+    margin-left: 82px;
+  }
+}
+@media (max-width: 650px) {
+  .continue-lesson {
+    display: block;
+    padding: 22px;
+  }
+  .continue-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+  }
+  .continue-copy h2 {
+    font-size: 20px;
+  }
+  .continue-lesson > .btn {
+    margin: 20px 0 0;
+    width: 100%;
+  }
 }
 .hero {
   display: flex;
