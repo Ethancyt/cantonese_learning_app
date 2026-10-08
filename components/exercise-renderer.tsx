@@ -1,5 +1,11 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,7 +20,8 @@ import {
 import { recordingToWav } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
-import { exerciseAudioText } from "@/lib/lesson-audio";
+import { exerciseAudioText, hasChinese } from "@/lib/lesson-audio";
+import { exerciseVocabulary } from "@/lib/speaking-target";
 import { practicePhrases } from "@/lib/content/practice-phrases";
 import {
   pronunciationSchema,
@@ -33,6 +40,23 @@ export const typeLabels: Record<Exercise["type"], string> = {
   scenario: "Try a real situation",
   ai_roleplay: "Meet your workshop buddy",
 };
+function AudioOption({
+  text,
+  lesson,
+  children,
+  ...button
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  text: string;
+  lesson: Lesson;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="option-with-audio">
+      <button {...button}>{children || text}</button>
+      {hasChinese(text) && <ListenButton lesson={lesson} text={text} />}
+    </div>
+  );
+}
 export function ExerciseRenderer({
   exercise: e,
   lesson,
@@ -58,12 +82,7 @@ export function ExerciseRenderer({
     setSelected(answer);
     onAnswer(answer, !!answer);
   }
-  const section = lesson.module?.sections.find((s) =>
-    s.exerciseIds.includes(e.id),
-  );
-  const vocabulary = section
-    ? lesson.vocabulary.filter((v) => section.vocabularyIds.includes(v.id))
-    : lesson.vocabulary;
+  const vocabulary = exerciseVocabulary(lesson, e);
   const isChoice = [
     "multiple_choice",
     "listen_choose",
@@ -100,7 +119,9 @@ export function ExerciseRenderer({
       {isChoice && (
         <div className="exercise-options">
           {e.options.map((o, i) => (
-            <button
+            <AudioOption
+              text={o}
+              lesson={lesson}
               disabled={disabled}
               className={`option ${selected === o ? "selected" : ""}`}
               key={o}
@@ -108,7 +129,7 @@ export function ExerciseRenderer({
             >
               <span>{i + 1}</span>
               {o}
-            </button>
+            </AudioOption>
           ))}
         </div>
       )}
@@ -192,6 +213,21 @@ export function ExerciseRenderer({
               ? "All words explored. Ready to continue!"
               : "Explore each word before continuing."}
           </p>
+          <h3>Look, listen and say</h3>
+          <Speaking
+            key={`${e.id}:${vocabulary[card].id}`}
+            lesson={lesson}
+            exercise={e}
+            vocabularyId={vocabulary[card].id}
+            targetText={vocabulary[card].traditional}
+            disabled={disabled}
+            preview={preview}
+            onReady={() => {
+              const next = new Set([...visited, card]);
+              setVisited(next);
+              onAnswer("reviewed", next.size === vocabulary.length);
+            }}
+          />
         </>
       )}
       {e.type === "sentence_order" && (
@@ -222,7 +258,9 @@ export function ExerciseRenderer({
             {e.tokens
               ?.map((_, i) => e.tokens!.length - 1 - i)
               .map((i) => (
-                <button
+                <AudioOption
+                  text={e.tokens![i]}
+                  lesson={lesson}
                   className="token"
                   disabled={disabled || tokens.includes(i)}
                   key={i}
@@ -236,7 +274,7 @@ export function ExerciseRenderer({
                   }}
                 >
                   {e.tokens![i]}
-                </button>
+                </AudioOption>
               ))}
           </div>
         </>
@@ -254,14 +292,16 @@ export function ExerciseRenderer({
           </label>
           <div className="tokens">
             {e.options.map((o) => (
-              <button
+              <AudioOption
+                text={o}
+                lesson={lesson}
                 className="token"
                 disabled={disabled}
                 key={o}
                 onClick={() => pick(o)}
               >
                 {o}
-              </button>
+              </AudioOption>
             ))}
           </div>
         </>
@@ -271,19 +311,23 @@ export function ExerciseRenderer({
           <div className="match-grid">
             <div className="match-column">
               {e.pairs?.map((p) => (
-                <button
+                <AudioOption
+                  text={p.left}
+                  lesson={lesson}
                   disabled={disabled || pairs.some((x) => x.left === p.left)}
                   className={`option ${pairLeft === p.left ? "selected" : ""} ${pairs.some((x) => x.left === p.left) ? "matched" : ""}`}
                   key={p.left}
                   onClick={() => setPairLeft(p.left)}
                 >
                   {p.left}
-                </button>
+                </AudioOption>
               ))}
             </div>
             <div className="match-column">
               {[...(e.pairs || [])].reverse().map((p) => (
-                <button
+                <AudioOption
+                  text={p.right}
+                  lesson={lesson}
                   disabled={
                     disabled ||
                     !pairLeft ||
@@ -308,7 +352,7 @@ export function ExerciseRenderer({
                   }}
                 >
                   {p.right}
-                </button>
+                </AudioOption>
               ))}
             </div>
           </div>
@@ -332,6 +376,7 @@ export function ExerciseRenderer({
           exercise={e}
           onReady={() => onAnswer("practised", true)}
           preview={preview}
+          disabled={disabled}
         />
       )}
       {e.type === "ai_roleplay" && (
@@ -349,11 +394,17 @@ function Speaking({
   exercise,
   onReady,
   preview,
+  vocabularyId,
+  targetText = exercise.answer,
+  disabled = false,
 }: {
   lesson: Lesson;
   exercise: Exercise;
   onReady: () => void;
   preview: boolean;
+  vocabularyId?: string;
+  targetText?: string;
+  disabled?: boolean;
 }) {
   const { request } = useApp();
   const [recording, setRecording] = useState(false),
@@ -367,16 +418,21 @@ function Speaking({
   const recorder = useRef<MediaRecorder | null>(null),
     stream = useRef<MediaStream | null>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    blobUrl = useRef("");
-  useEffect(
-    () => () => {
+    blobUrl = useRef(""),
+    active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
       if (timer.current) clearTimeout(timer.current);
-      recorder.current?.stop();
+      if (recorder.current) {
+        recorder.current.onstop = null;
+        if (recorder.current.state !== "inactive") recorder.current.stop();
+      }
       stream.current?.getTracks().forEach((t) => t.stop());
       URL.revokeObjectURL(blobUrl.current);
-    },
-    [],
-  );
+    };
+  }, []);
   async function start() {
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
@@ -386,6 +442,10 @@ function Speaking({
         return;
       }
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!active.current) {
+        s.getTracks().forEach((t) => t.stop());
+        return;
+      }
       setAssessment(null);
       setBlob(null);
       setUrl("");
@@ -432,18 +492,20 @@ function Speaking({
       form.set("lessonId", lesson.id);
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);
+      if (vocabularyId) form.set("vocabularyId", vocabularyId);
       const result = await request("/api/transcribe", form);
+      if (!active.current) return;
       const parsed = pronunciationSchema.safeParse(result.assessment);
       if (result.available && parsed.success) setAssessment(parsed.data);
       setNote(
         result.available
-          ? `Expected: ${result.expected || exercise.answer}\nRecognized: ${result.recognized}\n${result.message}\n${result.note}`
+          ? `Expected: ${result.expected || targetText}\nRecognized: ${result.recognized}\n${result.message}\n${result.note}`
           : result.message,
       );
     } catch (e) {
-      setNote((e as Error).message);
+      if (active.current) setNote((e as Error).message);
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   }
   return (
@@ -451,7 +513,7 @@ function Speaking({
       <button
         className={`record-button ${recording ? "recording" : ""}`}
         aria-label={recording ? "Stop recording" : "Start recording"}
-        disabled={busy}
+        disabled={busy || disabled}
         onClick={() => {
           if (recording) {
             if (timer.current) clearTimeout(timer.current);
@@ -462,7 +524,7 @@ function Speaking({
         {recording ? <Square size={26} /> : <Mic size={29} />}
       </button>
       <p className="record-note" role="status">
-        {note || "Listen first. Record yourself or practise aloud."}
+        {note || `Say “${targetText}”. Record yourself or practise aloud.`}
       </p>
       {assessment && (
         <section
@@ -531,7 +593,7 @@ function Speaking({
       <div className="speech-controls">
         {blob && !preview && (
           <button
-            disabled={busy || recording}
+            disabled={busy || recording || disabled}
             className="btn secondary"
             onClick={transcribe}
           >
@@ -540,6 +602,7 @@ function Speaking({
         )}
         <button
           className="btn secondary"
+          disabled={busy || recording || disabled}
           onClick={() => {
             onReady();
             setAssessment(null);

@@ -2,10 +2,26 @@
 // Start an isolated server with TEST_AZURE_SPEECH_MOCK=true and
 // NODE_OPTIONS="--import ./tests/helpers/azure-speech-mock.mjs" so the preload
 // also reaches the Next.js child started by scripts/start-local.mjs.
+import { readFile } from "node:fs/promises";
 if (process.env.TEST_AZURE_SPEECH_MOCK === "true") {
   const original = globalThis.fetch;
   globalThis.fetch = async (input, options) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname.endsWith(".tts.speech.microsoft.com")) {
+      const headers = new Headers(options?.headers);
+      if (
+        headers.get("Ocp-Apim-Subscription-Key") !== "test-only-listening-key"
+      )
+        throw new Error("Unexpected test voice authentication.");
+      return new Response(
+        await readFile(
+          new URL("../fixtures/audio-test-tone.mp3", import.meta.url),
+        ),
+        {
+          headers: { "Content-Type": "audio/mpeg" },
+        },
+      );
+    }
     if (!url.hostname.endsWith(".stt.speech.microsoft.com"))
       return original(input, options);
     const headers = new Headers(options?.headers);

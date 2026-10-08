@@ -1008,6 +1008,28 @@ footer {
   background: #cdddbe;
   color: #466335;
 }
+.option-with-audio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.option-with-audio > button {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.exercise-panel .option-with-audio > .listen-wrap {
+  flex: 0 0 42px;
+  margin: 0;
+}
+.option-with-audio .audio-note {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  width: 200px;
+  z-index: 2;
+}
 .exercise-actions {
   display: flex;
   justify-content: space-between;

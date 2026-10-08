@@ -35,7 +35,12 @@ test(
           equals = first.indexOf("=");
         cookies.set(first.slice(0, equals), first.slice(equals + 1));
       }
-      return { status: response.status, body: await response.json() };
+      return {
+        status: response.status,
+        body: response.headers.get("Content-Type")?.includes("audio/mpeg")
+          ? { audioBytes: (await response.arrayBuffer()).byteLength }
+          : await response.json(),
+      };
     }
     assert.equal(
       (
@@ -107,10 +112,59 @@ test(
       const wrongExercise = recording();
       wrongExercise.set("exerciseId", "not-a-published-speaking-exercise");
       assert.equal((await call("/api/transcribe", wrongExercise)).status, 400);
+      const flashcard = lesson.exercises.find(
+        (e: any) => e.type === "flashcard",
+      );
+      const section = lesson.module?.sections.find((s: any) =>
+        s.exerciseIds.includes(flashcard.id),
+      );
+      const word = lesson.vocabulary.find(
+        (v: any) => !section || section.vocabularyIds.includes(v.id),
+      );
+      const flashRecording = recording();
+      flashRecording.set("exerciseId", flashcard.id);
+      flashRecording.set("vocabularyId", word.id);
+      const wordFeedback = await call("/api/transcribe", flashRecording);
+      assert.equal(wordFeedback.status, 200, JSON.stringify(wordFeedback.body));
+      assert.equal(wordFeedback.body.expected, word.traditional);
+      assert.equal(wordFeedback.body.assessment.accuracy, 87);
+      flashRecording.set("vocabularyId", "unpublished-word");
+      assert.equal((await call("/api/transcribe", flashRecording)).status, 400);
+      flashRecording.delete("vocabularyId");
+      assert.equal((await call("/api/transcribe", flashRecording)).status, 400);
+
+      await call("/api/developer", {
+        action: "save",
+        settings: {
+          ttsProvider: "azure",
+          ttsKey: "test-only-listening-key",
+          azureRegion: "eastasia",
+        },
+      });
+      const voiceRequest = {
+        lessonId: lesson.id,
+        version: lesson.version,
+        text: word.traditional,
+      };
+      const voice = await call("/api/audio", voiceRequest);
+      assert.equal(voice.status, 200);
+      assert.equal(voice.body.audioBytes > 16, true);
+      const replay = await call("/api/audio", voiceRequest);
+      assert.equal(replay.status, 200);
+      assert.equal(replay.body.audioBytes, voice.body.audioBytes);
+      assert.equal(
+        (await call("/api/audio", { ...voiceRequest, text: "未授權的新句子" }))
+          .status,
+        400,
+      );
+      assert.equal(
+        (await call("/api/audio", { ...voiceRequest, version: 9999 })).status,
+        400,
+      );
     } finally {
       await call("/api/developer", {
         action: "save",
-        settings: { speechKey: null },
+        settings: { speechKey: null, ttsKey: null },
       });
     }
   },

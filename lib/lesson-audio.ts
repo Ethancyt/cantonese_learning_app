@@ -1,5 +1,9 @@
 import type { Exercise, Lesson } from "./schema";
 
+export function hasChinese(text: string) {
+  return /[\u3400-\u9fff]/u.test(text);
+}
+
 export function exerciseAudioText(exercise: Exercise) {
   return exercise.type === "speak"
     ? exercise.answer || exercise.prompt
@@ -17,14 +21,13 @@ export function lessonAudioTexts(lesson: Lesson): string[] {
     ...lesson.exercises
       .filter((e) => ["listen_choose", "speak"].includes(e.type))
       .map(exerciseAudioText),
+    ...lesson.exercises.flatMap((e) => [
+      ...e.options,
+      ...(e.tokens || []),
+      ...(e.pairs?.flatMap((p) => [p.left, p.right]) || []),
+    ]),
   ];
-  return [
-    ...new Set(
-      texts
-        .map((text) => text.trim())
-        .filter((text) => /[\u3400-\u9fff]/u.test(text)),
-    ),
-  ];
+  return [...new Set(texts.map((text) => text.trim()).filter(hasChinese))];
 }
 
 export function retainedAudio(lesson: Lesson, stored: Lesson) {

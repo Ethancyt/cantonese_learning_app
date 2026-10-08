@@ -321,9 +321,9 @@ export function ListenButton({
         className="listen-btn"
         aria-label={`Listen to ${text}`}
         disabled={busy}
-        title={clip ? "Play saved lesson audio" : "Play device Cantonese voice"}
+        title={clip ? "Play saved lesson audio" : "Play Cantonese voice"}
         onClick={async () => {
-          if (clip && source) {
+          if (source) {
             setBusy(true);
             setNote("");
             try {
@@ -332,42 +332,75 @@ export function ListenButton({
                 const session = auth
                   ? (await auth.auth.getSession()).data.session
                   : null;
-                const query = new URLSearchParams({
-                  lessonId: source.id,
-                  version: String(source.version),
-                  clipId: clip.id,
-                });
-                const response = await fetch(`/api/audio?${query}`, {
-                  headers: session
-                    ? { Authorization: `Bearer ${session.access_token}` }
-                    : {},
-                  signal: abort.current.signal,
-                });
-                if (!response.ok)
+                const query = clip
+                  ? new URLSearchParams({
+                      lessonId: source.id,
+                      version: String(source.version),
+                      clipId: clip.id,
+                    })
+                  : null;
+                const response = await fetch(
+                  query ? `/api/audio?${query}` : "/api/audio",
+                  {
+                    method: clip ? "GET" : "POST",
+                    headers: session
+                      ? {
+                          Authorization: `Bearer ${session.access_token}`,
+                          ...(!clip
+                            ? { "Content-Type": "application/json" }
+                            : {}),
+                        }
+                      : !clip
+                        ? { "Content-Type": "application/json" }
+                        : {},
+                    body: clip
+                      ? undefined
+                      : JSON.stringify({
+                          lessonId: source.id,
+                          version: source.version,
+                          text,
+                        }),
+                    signal: abort.current.signal,
+                  },
+                );
+                if (!response.ok) {
+                  const error = await response.json().catch(() => ({}));
                   throw new Error(
-                    "Saved audio could not load. Please try again.",
+                    error.error ||
+                      "Lesson audio could not load. Please try again.",
                   );
-                const url = URL.createObjectURL(await response.blob());
-                saved.current = { audio: new Audio(url), url };
+                }
+                if (
+                  !response.headers
+                    .get("Content-Type")
+                    ?.includes("application/json")
+                ) {
+                  const url = URL.createObjectURL(await response.blob());
+                  saved.current = { audio: new Audio(url), url };
+                }
               }
-              activeAudio?.pause();
-              window.speechSynthesis?.cancel();
-              activeAudio = saved.current.audio;
-              activeAudio.currentTime = 0;
-              activeAudio.onerror = () =>
-                setNote("Saved audio could not play. Please try again.");
-              await activeAudio.play();
+              if (saved.current) {
+                activeAudio?.pause();
+                window.speechSynthesis?.cancel();
+                activeAudio = saved.current.audio;
+                activeAudio.currentTime = 0;
+                activeAudio.onerror = () =>
+                  setNote("Saved audio could not play. Please try again.");
+                await activeAudio.play();
+                return;
+              }
             } catch (e) {
               if ((e as Error).name !== "AbortError")
                 setNote(
                   (e as Error).name === "NotAllowedError"
                     ? "Audio is ready. Tap Listen again to play."
-                    : "Saved audio could not play. Please try again.",
+                    : (e as Error).message ||
+                        "Lesson audio could not play. Please try again.",
                 );
+              return;
             } finally {
               setBusy(false);
             }
-            return;
           }
           activeAudio?.pause();
           if (!("speechSynthesis" in window)) {

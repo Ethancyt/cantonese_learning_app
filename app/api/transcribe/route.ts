@@ -3,6 +3,7 @@ import { readSettings } from "@/lib/server/settings";
 import { NextRequest, NextResponse } from "next/server";
 import { identity, guard, failure } from "@/lib/server/security";
 import { readData } from "@/lib/server/repository";
+import { speakingTarget } from "@/lib/speaking-target";
 export async function POST(req: NextRequest) {
   try {
     const user = await identity(req);
@@ -31,19 +32,22 @@ export async function POST(req: NextRequest) {
           (!lesson.availableAt || new Date(lesson.availableAt) > new Date())))
     )
       throw new Error("This lesson is unavailable.");
-    const e = lesson?.exercises.find(
-      (e) => e.id === form.get("exerciseId") && e.type === "speak",
-    );
+    const target = lesson
+      ? speakingTarget(
+          lesson,
+          String(form.get("exerciseId") || ""),
+          String(form.get("vocabularyId") || ""),
+        )
+      : null;
     const file = form.get("audio");
     if (
-      !e ||
+      !target ||
       !(file instanceof File) ||
       file.size > 5 * 1024 * 1024 ||
       !/^audio\/(webm|mp4|ogg|wav)/.test(file.type)
     )
       throw new Error("Invalid recording.");
-    // Use the authorized published exercise's answer, never a client-supplied target.
-    const feedback = await assessSpeaking(file, settings, e.answer);
+    const feedback = await assessSpeaking(file, settings, target);
     return NextResponse.json({
       available: true,
       ...feedback,

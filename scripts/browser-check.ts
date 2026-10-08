@@ -102,6 +102,19 @@ async function main() {
           e.instruction,
         );
         if (e.type === "flashcard") {
+          await expect(
+            page.getByRole("heading", { name: "Look, listen and say" }),
+          ).toBeVisible();
+          await expect(
+            page.getByRole("button", { name: "Start recording" }),
+          ).toBeVisible();
+          await page.getByRole("button", { name: "Start recording" }).click();
+          await page.getByRole("button", { name: "Stop recording" }).waitFor();
+          await page.waitForTimeout(500);
+          await page.getByRole("button", { name: "Stop recording" }).click();
+          await expect(
+            page.getByRole("button", { name: "Check pronunciation" }),
+          ).toBeVisible();
           for (
             let i = 1;
             i <
@@ -118,13 +131,22 @@ async function main() {
             "conversation_choice",
             "scenario",
           ].includes(e.type)
-        )
+        ) {
+          for (const option of e.options.filter((o: string) =>
+            /[\u3400-\u9fff]/u.test(o),
+          ))
+            await expect(
+              page.locator(".exercise-options").getByRole("button", {
+                name: `Listen to ${option}`,
+                exact: true,
+              }),
+            ).toBeVisible();
           await page
             .locator(".exercise-options")
-            .getByRole("button")
+            .locator(".option")
             .nth(e.options.indexOf(e.answer))
             .click();
-        else if (e.type === "match") {
+        } else if (e.type === "match") {
           for (const p of e.pairs) {
             await page
               .locator(".match-column")
@@ -271,7 +293,7 @@ async function main() {
     )
       await page
         .locator(".exercise-options")
-        .getByRole("button")
+        .locator(".option")
         .nth(e.options.indexOf(e.answer))
         .click();
     else if (e.type === "match") {
