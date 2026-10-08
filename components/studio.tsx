@@ -540,7 +540,10 @@ export function Studio() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+                if (e.dataTransfer.files[0]) {
+                  setFile(e.dataTransfer.files[0]);
+                  setText("");
+                }
               }}
             >
               <Upload size={32} />
@@ -559,7 +562,11 @@ export function Studio() {
                   id="material-file"
                   type="file"
                   accept=".pdf,.pptx,.docx,.txt,.md"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0] || null;
+                    setFile(selectedFile);
+                    if (selectedFile) setText("");
+                  }}
                 />
               </label>
               {file && (
@@ -585,7 +592,10 @@ export function Studio() {
                 Or paste your workshop notes
                 <textarea
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    if (e.target.value.trim()) setFile(null);
+                  }}
                   maxLength={60000}
                   rows={6}
                   placeholder={
@@ -595,9 +605,10 @@ export function Studio() {
               </label>
             </div>
             <p className="help-text">
-              Without an AI connection, demo extraction uses “Chinese | Jyutping
-              | English” lines. Scanned PDFs need text recognition before
-              uploading.
+              Use one source at a time: choosing a file clears pasted notes, and
+              typing notes clears the selected file. Without an AI connection,
+              demo extraction uses “Chinese | Jyutping | English” lines. Scanned
+              PDFs need text recognition before uploading.
             </p>
             <div className="studio-actions">
               <button

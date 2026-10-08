@@ -12,6 +12,28 @@ import { provider } from "./provider";
 import { normalizeAIProvenance } from "./provenance";
 import { normalizeAIActivities } from "./activities";
 import { validatedAI } from "./validated";
+function promptSource(source: Source) {
+  return {
+    id: source.id,
+    filename: source.filename,
+    chunks: source.chunks,
+  };
+}
+function groundedAnalysisSchema(source: Source) {
+  return analysisSchema.superRefine((analysis, ctx) => {
+    for (const [index, vocabulary] of analysis.vocabulary.entries())
+      if (
+        !source.chunks.some((chunk) =>
+          chunk.text.includes(vocabulary.traditional),
+        )
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["vocabulary", index, "traditional"],
+          message: "Vocabulary is not grounded in the workshop source.",
+        });
+  });
+}
 export function grounded(
   analysis: Analysis,
   source: Source,
@@ -40,7 +62,7 @@ export async function analyze(
       ai,
       {
         task: "Analyze source and return learningObjectives:string[], vocabulary:{id,traditional,jyutping,english,example,exampleJyutping,exampleEnglish}[], expressions:string[],grammar:string[],dialogue:string[], culturalNotes:{title,body}[]",
-        source,
+        source: promptSource(source),
         schema: {
           learningObjectives: ["A source-based learning goal"],
           vocabulary: [
@@ -62,7 +84,7 @@ export async function analyze(
           ],
         },
       },
-      analysisSchema,
+      groundedAnalysisSchema(source),
       normalizeAIProvenance,
       "analysis",
     );
@@ -185,7 +207,7 @@ export async function generate(
           answers:
             "Include a nonempty answer for fill_blank and speak. Use unique exercise IDs and keep source metadata inside provenance.",
         },
-        source,
+        source: promptSource(source),
         approvedAnalysis: analysis,
         settings,
         styleReferences: settings.references ? style : [],

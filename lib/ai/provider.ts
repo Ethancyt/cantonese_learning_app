@@ -9,26 +9,38 @@ export interface AIProvider {
 export class CompatibleProvider implements AIProvider {
   constructor(private settings: Settings) {}
   async json(system: string, input: unknown, options?: { timeoutMs: number }) {
-    const response = await fetch(
-      `${this.settings.aiUrl.replace(/\/$/, "")}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.settings.aiKey}`,
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.settings.aiUrl.replace(/\/$/, "")}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.settings.aiKey}`,
+          },
+          body: JSON.stringify({
+            model: this.settings.aiModel,
+            temperature: 0.2,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: JSON.stringify(input) },
+            ],
+          }),
+          signal: AbortSignal.timeout(options?.timeoutMs ?? 75000),
         },
-        body: JSON.stringify({
-          model: this.settings.aiModel,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-        }),
-        signal: AbortSignal.timeout(options?.timeoutMs ?? 60000),
-      },
-    );
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        ["AbortError", "TimeoutError"].includes(error.name)
+      )
+        throw new Error(
+          "The AI provider took too long to respond. Try again, use a shorter material, or choose a faster model in Developer setup.",
+        );
+      throw error;
+    }
     if (!response.ok)
       throw new Error("The AI provider could not complete this request.");
     const data = await response.json();

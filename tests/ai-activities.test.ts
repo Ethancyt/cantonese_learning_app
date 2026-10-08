@@ -145,7 +145,7 @@ test("AI schema correction retries once, supplies field-level errors, and reject
   const ai: AIProvider = {
     async json(_system, request, options) {
       requests.push(request);
-      assert.ok(options!.timeoutMs > 0 && options!.timeoutMs <= 60000);
+      assert.ok(options!.timeoutMs > 0 && options!.timeoutMs <= 75000);
       return requests.length === 1
         ? { ...valid, options: ["學生", "學生"] }
         : valid;
@@ -210,5 +210,5 @@ test("AI correction shares a total deadline with the first request", async (t) =
     },
   };
   await validatedAI(ai, {}, exerciseSchema, (value) => value, "lesson");
-  assert.deepEqual(timeouts, [60000, 10000]);
+  assert.deepEqual(timeouts, [75000, 20000]);
 });

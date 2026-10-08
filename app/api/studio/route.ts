@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
               String(form.get("text") || ""),
               user.id,
             );
-      await saveSource(user.client, source);
       const result = await analyze(source);
+      await saveSource(user.client, source);
       return NextResponse.json({ source, ...result });
     }
     const b = await req.json();

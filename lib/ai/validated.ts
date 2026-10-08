@@ -11,23 +11,33 @@ export async function validatedAI<S extends z.ZodTypeAny>(
 ): Promise<z.output<S>> {
   const started = Date.now();
   let request = input;
+  let lastIssues: { path: PropertyKey[]; message: string }[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
-    const remaining = 75000 - (Date.now() - started);
+    const remaining = 85000 - (Date.now() - started);
     if (remaining <= 1000) break;
     const response = await ai.json(generationRules, request, {
-      timeoutMs: Math.min(60000, remaining),
+      timeoutMs: Math.min(75000, remaining),
     });
     const parsed = schema.safeParse(normalize(response));
     if (parsed.success) return parsed.data;
+    lastIssues = parsed.error.issues.map((issue) => ({
+      path: issue.path,
+      message: issue.message,
+    }));
     request = {
       task: "Correct the previous JSON response using the validation errors. Return the complete corrected object, not a patch. Preserve the reviewed source, selected activity types, and intended answers. Follow the supplied schema exactly.",
       originalRequest: input,
       previousResponse: response,
-      validationErrors: parsed.error.issues
-        .slice(0, 12)
-        .map((issue) => ({ path: issue.path, message: issue.message })),
+      validationErrors: lastIssues.slice(0, 12),
     };
   }
+  if (
+    lastIssues.some(
+      (issue) =>
+        issue.message === "Vocabulary is not grounded in the workshop source.",
+    )
+  )
+    throw new Error("Vocabulary is not grounded in the workshop source.");
   throw new Error(
     `Generated ${kind} did not pass validation after correction. Try again or choose a different AI model in Developer setup. No draft was published.`,
   );

@@ -49,11 +49,25 @@ test("AI analysis and generation accept flat source metadata while preserving st
     vocabulary: baseline.vocabulary.map(flatten),
   };
   let response: unknown = flatAnalysis;
+  let queuedResponses: unknown[] = [];
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(String(options?.body));
     assert.match(request.messages[0].content, /nested provenance object/);
+    const prompt = JSON.parse(request.messages[1].content);
+    if (prompt.source)
+      assert.equal(
+        Object.hasOwn(prompt.source, "text"),
+        false,
+        "AI prompts should not duplicate the source text alongside its chunks",
+      );
     return Response.json({
-      choices: [{ message: { content: JSON.stringify(response) } }],
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(queuedResponses.shift() ?? response),
+          },
+        },
+      ],
     });
   };
   await initializeDeveloper("provenance-test-password");
@@ -70,6 +84,17 @@ test("AI analysis and generation accept flat source metadata while preserving st
   assert.equal(
     Object.hasOwn(analyzed.analysis.vocabulary[0], "sourceExcerpt"),
     false,
+  );
+  const ungrounded = {
+    ...flatAnalysis,
+    vocabulary: [{ ...flatAnalysis.vocabulary[0], traditional: "不存在的詞" }],
+  };
+  queuedResponses = [ungrounded, flatAnalysis];
+  const correctedAnalysis = await analyze(source);
+  assert.equal(
+    correctedAnalysis.analysis.vocabulary[0].traditional,
+    baseline.vocabulary[0].traditional,
+    "an ungrounded first response should be corrected within the validation retry",
   );
   response = {
     ...template,
@@ -127,10 +152,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
     () => analyze(source),
     /Generated analysis did not pass validation/,
   );
-  response = {
-    ...flatAnalysis,
-    vocabulary: [{ ...flatAnalysis.vocabulary[0], traditional: "不存在的詞" }],
-  };
+  response = ungrounded;
   await assert.rejects(() => analyze(source), /not grounded/);
   const malformed = {
     ...flatAnalysis,
