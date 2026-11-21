@@ -3,7 +3,10 @@
   "name": "cantonese-learning-app",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-11-21",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "keep_vars": true,
   "assets": {
     "directory": ".open-next/assets",
@@ -20,5 +23,6 @@
     "traces": {
       "enabled": true
     }
-  }
+  },
+  "previews": {}
 }
