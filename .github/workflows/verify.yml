@@ -1,0 +1,50 @@
+name: Verify Cantonese learning app
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Test the app against its production build
+        env:
+          APP_MODE: demo
+          LOCAL_DEVELOPER_SETUP: "true"
+          TEST_BASE_URL: http://localhost:3001
+          TEST_AZURE_BASE_URL: http://localhost:3002
+        run: |
+          DEMO_DATA_DIR="$RUNNER_TEMP/workshop-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/workshop-developer" \
+            node node_modules/next/dist/bin/next start --port 3001 > "$RUNNER_TEMP/workshop-server.log" 2>&1 &
+          DEMO_DATA_DIR="$RUNNER_TEMP/azure-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/azure-developer" \
+            TEST_AZURE_SPEECH_MOCK=true NODE_OPTIONS="--import ./tests/helpers/azure-speech-mock.mjs" \
+            node node_modules/next/dist/bin/next start --port 3002 > "$RUNNER_TEMP/workshop-azure.log" 2>&1 &
+          for url in "$TEST_BASE_URL" "$TEST_AZURE_BASE_URL"; do
+            curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$url/api/config" > /dev/null
+          done
+          npm test
+      - name: Check the learner and Volunteer Studio flows in Chromium
+        env:
+          APP_MODE: demo
+          TEST_BASE_URL: http://localhost:3003
+        run: |
+          npx playwright install --with-deps chromium
+          DEMO_DATA_DIR="$RUNNER_TEMP/browser-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/browser-developer" \
+            node node_modules/next/dist/bin/next start --port 3003 > "$RUNNER_TEMP/workshop-browser.log" 2>&1 &
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$TEST_BASE_URL/api/config" > /dev/null
+          npm run test:browser

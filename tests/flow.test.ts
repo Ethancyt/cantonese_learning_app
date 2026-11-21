@@ -1,7 +1,7 @@
 // Run with a server: TEST_BASE_URL=http://localhost:3000 npm test
 import test from "node:test";
 import assert from "node:assert/strict";
-import { demoMaterial } from "../lib/seeds";
+import { studioMaterial } from "./helpers/studio-material";
 const base = process.env.TEST_BASE_URL;
 test(
   "HTTP demo: permission, upload, generation, approval, versioning, progress and review",
@@ -39,17 +39,40 @@ test(
     assert.equal(initial.status, 200);
     assert.equal(
       initial.data.lessons.filter((l: any) => l.createdBy === "system").length,
-      4,
+      1,
     );
     assert.equal(
       (await call("/api/studio", { action: "generate" })).status,
       403,
     );
     await call("/api/data", { action: "role", role: "volunteer" });
+    const workshop = initial.data.lessons[0];
+    assert.equal(workshop.id, "workshop-2026-11-13");
+    assert.equal(workshop.module.romanisation, "yale");
+    const personal = workshop.exercises.find((e: any) => e.personalPractice);
+    assert.equal(
+      (
+        await call("/api/data", {
+          action: "attempt",
+          lessonId: workshop.id,
+          version: workshop.version,
+          exerciseId: personal.id,
+          answer: "A name entered for practice",
+        })
+      ).status,
+      200,
+    );
+    const recorded = (await call("/api/data")).data.attempts.find(
+      (a: any) => a.exerciseId === personal.id,
+    );
+    assert.equal(recorded.answer, "practised");
+    assert.equal(recorded.correct, false);
+    assert.deepEqual(recorded.tags, []);
+    assert.deepEqual((await call("/api/data")).data.sources, []);
     const upload = new FormData();
     upload.set(
       "file",
-      new File([demoMaterial], "Workshop Demo — 茶餐廳.txt", {
+      new File([studioMaterial], "Example workshop upload.txt", {
         type: "text/plain",
       }),
     );
@@ -86,7 +109,7 @@ test(
       ),
       false,
     );
-    lesson.exercises[1].instruction = "Listen to your café workshop phrase";
+    lesson.exercises[1].instruction = "Listen to your workshop phrase";
     const approve = await call("/api/studio", { action: "approve", lesson });
     assert.equal(approve.status, 200);
     assert.equal(
@@ -175,7 +198,7 @@ test(
     const reply = await call("/api/roleplay", {
       lessonId: lesson.id,
       version: 1,
-      messages: [{ role: "user", content: "奶茶" }],
+      messages: [{ role: "user", content: "你好" }],
     });
     assert.equal(reply.status, 200);
     assert.match(reply.data.mode, /Demo/);

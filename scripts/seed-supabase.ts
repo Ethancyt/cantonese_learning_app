@@ -1,5 +1,12 @@
 // Database-owner SQL only. Published historical snapshots are never replaced.
 import { seedLessons } from "../lib/seeds";
+import {
+  retiredDemoFilename,
+  retiredDemoOpening,
+  retiredSystemLessonIds,
+} from "../lib/content/retired-content";
+
+const sqlString = (value: string) => "'" + value.replaceAll("'", "''") + "'";
 export function curriculumSQL() {
   return (
     "begin;\n" +
@@ -14,7 +21,20 @@ SELECT id,version,payload FROM public.lessons WHERE id='${lesson.id}' AND create
 ON CONFLICT(lesson_id,version) DO NOTHING;`;
       })
       .join("\n") +
-    "\ncommit;\n"
+    `
+UPDATE public.lessons AS lesson
+SET status='archived', payload=jsonb_set(lesson.payload,'{status}','"archived"'), updated_at=now()
+WHERE lesson.status='published' AND (
+  (lesson.created_by IS NULL AND lesson.id IN (${retiredSystemLessonIds.map(sqlString).join(", ")}))
+  OR EXISTS (
+    SELECT 1 FROM public.source_materials AS source
+    WHERE source.id::text=lesson.payload->>'sourceMaterialId'
+      AND source.filename=${sqlString(retiredDemoFilename)}
+      AND starts_with(source.payload->>'text',${sqlString(retiredDemoOpening)})
+  )
+);
+commit;
+`
   );
 }
 if (process.argv[1]?.endsWith("seed-supabase.ts")) console.log(curriculumSQL());

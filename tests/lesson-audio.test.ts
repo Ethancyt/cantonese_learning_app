@@ -92,8 +92,13 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     ttsKey: "private-compatible-key",
     ttsModel: "tts-1",
   });
-  const lesson = structuredClone(seedLessons[1]);
+  const lesson = structuredClone(seedLessons[0]);
   lesson.id = "audio-test-draft";
+  lesson.vocabulary[0] = {
+    ...lesson.vocabulary[0],
+    traditional: "測試錄音",
+    example: "測試錄音",
+  };
   lesson.createdBy = crypto.randomUUID();
   lesson.status = "under_review";
   lesson.version = 1;
@@ -146,12 +151,11 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
   );
   const edited = structuredClone(result.lesson);
   const previousText = edited.vocabulary[0].traditional;
-  edited.vocabulary[0].traditional = "新詞語";
-  edited.module = undefined;
-  edited.exercises = edited.exercises.filter((e) => e.prompt !== previousText);
-  edited.vocabulary = edited.vocabulary.filter(
-    (v, i) => i === 0 || v.traditional !== previousText,
-  );
+  edited.vocabulary[0] = {
+    ...edited.vocabulary[0],
+    traditional: "新詞語",
+    example: "新詞語",
+  };
   assert.equal(
     retainedAudio(edited, result.lesson).some((c) => c.text === previousText),
     false,

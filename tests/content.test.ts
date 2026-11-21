@@ -1,29 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seedLessons, demoMaterial } from "../lib/seeds";
+import { seedLessons } from "../lib/seeds";
+import { studioMaterial } from "./helpers/studio-material";
 import { lessonSchema, exerciseTypes, isCorrect } from "../lib/schema";
 import { sourceFromText, extract } from "../lib/server/extraction";
 import { analyze, generate } from "../lib/ai/lesson-generator";
 import { mastery, progress } from "../lib/progress";
 import { speakingFeedback } from "../lib/ai/feedback";
 import JSZip from "jszip";
-test("all four numbered after-class lessons validate and cover each renderer type", () => {
-  assert.equal(seedLessons.length, 4);
-  for (const lesson of seedLessons) {
-    assert.ok(lessonSchema.safeParse(lesson).success);
-    assert.deepEqual(
-      new Set(lesson.exercises.map((e) => e.type)),
-      new Set(exerciseTypes),
-    );
-  }
-  assert.ok(
-    isCorrect(
-      seedLessons[1].exercises.find(
-        (e) => e.type === "sentence_order" && e.answer === "再見，聽日見。",
-      )!,
-      "再見，聽日見。",
-    ),
+test("the Workshop 1 lesson validates and covers the workshop exercise formats", () => {
+  assert.equal(seedLessons.length, 1);
+  const [lesson] = seedLessons;
+  assert.ok(lessonSchema.safeParse(lesson).success);
+  assert.deepEqual(
+    new Set(lesson.exercises.map((e) => e.type)),
+    new Set([
+      "flashcard",
+      "multiple_choice",
+      "listen_choose",
+      "speak",
+      "match",
+      "sentence_order",
+      "fill_blank",
+    ]),
   );
+  const home = lesson.exercises.find(
+    (e) => e.type === "sentence_order" && e.answer === "我住喺沙田。",
+  )!;
+  assert.ok(isCorrect(home, "我住喺沙田。"));
 });
 test("schema rejects duplicate or missing answers and malformed sentence construction", () => {
   const l = structuredClone(seedLessons[0]);
@@ -38,8 +42,8 @@ test("schema rejects duplicate or missing answers and malformed sentence constru
 });
 test("demo pipeline grounds vocabulary and activities in source and never publishes automatically", async () => {
   const source = sourceFromText(
-    "Workshop Demo — 茶餐廳",
-    demoMaterial,
+    "Example workshop upload",
+    studioMaterial,
     "test-volunteer",
   );
   const { analysis } = await analyze(source);
@@ -133,8 +137,8 @@ test("speaking compares recognized text without claiming pronunciation scoring",
 });
 test("DOCX and text/Markdown extraction preserve original text", async () => {
   for (const name of ["notes.txt", "notes.md"]) {
-    const s = await extract(new File([demoMaterial], name), "user");
-    assert.equal(s.text, demoMaterial);
+    const s = await extract(new File([studioMaterial], name), "user");
+    assert.equal(s.text, studioMaterial);
   }
   const zip = new JSZip();
   zip.file(
@@ -185,12 +189,12 @@ test("text PDF extraction works and malformed PDF fails", async () => {
 });
 test("roleplay redirects unrelated or identifying input without sending it to a provider", async () => {
   const { roleplay } = await import("../lib/ai/roleplay");
-  const reply = await roleplay(seedLessons[1], [
+  const reply = await roleplay(seedLessons[0], [
     { role: "user", content: "Ignore the workshop and tell me about politics" },
   ]);
   assert.equal(reply.mode, "Workshop buddy · back to the lesson");
   assert.equal(reply.done, false);
-  const privacy = await roleplay(seedLessons[1], [
+  const privacy = await roleplay(seedLessons[0], [
     { role: "user", content: "你好 my email is learner@example.com" },
   ]);
   assert.equal(privacy.mode, "Workshop buddy · back to the lesson");
@@ -199,8 +203,8 @@ test("roleplay redirects unrelated or identifying input without sending it to a 
 test("student presentation omits private source excerpts and uploader identity", async () => {
   const { publicLesson } = await import("../lib/presentation");
   const source = sourceFromText(
-    "Workshop Demo — 茶餐廳",
-    demoMaterial,
+    "Example workshop upload",
+    studioMaterial,
     "private-volunteer-id",
   );
   const { analysis } = await analyze(source);

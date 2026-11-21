@@ -8,7 +8,7 @@ import { normalizeAIProvenance } from "../lib/ai/provenance";
 import { analysisSchema } from "../lib/schema";
 import { sourceFromText } from "../lib/server/extraction";
 import { initializeDeveloper, saveSettings } from "../lib/server/settings";
-import { demoMaterial } from "../lib/seeds";
+import { studioMaterial } from "./helpers/studio-material";
 
 test("AI analysis and generation accept flat source metadata while preserving strict validation and grounding", async (t) => {
   const root = await mkdtemp(
@@ -25,7 +25,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
   });
   const source = sourceFromText(
     "AI source test",
-    demoMaterial,
+    studioMaterial,
     "test-volunteer",
   );
   const baseline = (await analyze(source)).analysis;
@@ -106,12 +106,12 @@ test("AI analysis and generation accept flat source metadata while preserving st
   };
   const dirty = response as typeof template;
   dirty.exercises.find((e) => e.type === "match")!.pairs = [
-    { left: "奶茶", right: "Milk tea" },
-    { left: "奶茶", right: "Wrong duplicate" },
+    { left: "你好", right: "Milk tea" },
+    { left: "你好", right: "Wrong duplicate" },
   ];
   const sentence = dirty.exercises.find((e) => e.type === "sentence_order")!;
-  sentence.answer = "我想要奶茶。";
-  sentence.tokens = ["奶茶", "我", "想要"];
+  sentence.answer = "我想要你好。";
+  sentence.tokens = ["你好", "我", "想要"];
   const generated = await generate(source, analyzed.analysis, settings, []);
   assert.equal(generated.lesson.status, "ai_generated");
   assert.ok(
@@ -136,7 +136,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
   const ordered = generated.lesson.exercises.find(
     (e) => e.type === "sentence_order",
   )!;
-  assert.equal(ordered.tokens!.join(""), "我想要奶茶。");
+  assert.equal(ordered.tokens!.join(""), "我想要你好。");
 
   const fullResponse = structuredClone(response) as typeof template;
   const compact = {

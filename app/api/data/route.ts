@@ -7,13 +7,11 @@ import {
   saveAttempt,
   saveCompletion,
   report,
-  saveSource,
 } from "@/lib/server/repository";
 import { isCorrect, normalize } from "@/lib/schema";
 import { progress, mastery } from "@/lib/progress";
 import { publicLesson } from "@/lib/presentation";
-import { demoMaterial } from "@/lib/seeds";
-import { sourceFromText } from "@/lib/server/extraction";
+import { isRetiredDemoSource } from "@/lib/content/retired-content";
 export const runtime = "nodejs";
 function visible(l: { availability: string; availableAt?: string }) {
   return (
@@ -27,6 +25,9 @@ export async function GET(req: NextRequest) {
     const db = await readData(user.client, user.id);
     const attempts = db.attempts.filter((a) => a.studentId === user.id),
       completions = db.completions.filter((c) => c.studentId === user.id);
+    const retiredSources = new Set(
+      db.sources.filter(isRetiredDemoSource).map((source) => source.id),
+    );
     const latest = new Map<string, (typeof db.lessons)[number]>();
     for (const l of db.versions.filter(
       (l) => l.status === "published" && visible(l),
@@ -58,7 +59,10 @@ export async function GET(req: NextRequest) {
         user.role === "student"
           ? []
           : db.lessons.filter(
-              (l) => user.role === "admin" || l.createdBy === user.id,
+              (l) =>
+                (!l.sourceMaterialId ||
+                  !retiredSources.has(l.sourceMaterialId)) &&
+                (user.role === "admin" || l.createdBy === user.id),
             ),
       history:
         user.role === "student"
@@ -70,7 +74,9 @@ export async function GET(req: NextRequest) {
         user.role === "student"
           ? []
           : db.sources.filter(
-              (s) => user.role === "admin" || s.createdBy === user.id,
+              (s) =>
+                !retiredSources.has(s.id) &&
+                (user.role === "admin" || s.createdBy === user.id),
             ),
       attempts,
       completions,
@@ -145,21 +151,6 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === "production",
         path: "/",
       });
-      if (b.role === "volunteer") {
-        const existing = await readData(null, user.id);
-        if (
-          !existing.sources.some(
-            (s) =>
-              s.createdBy === user.id &&
-              s.filename === "Workshop Demo — 茶餐廳",
-          )
-        ) {
-          await saveSource(
-            null,
-            sourceFromText("Workshop Demo — 茶餐廳", demoMaterial, user.id),
-          );
-        }
-      }
       return NextResponse.json({ ok: true });
     }
     const db = await readData(user.client, user.id);
@@ -208,7 +199,7 @@ export async function POST(req: NextRequest) {
     }
     const e = lesson.exercises.find((x) => x.id === b.exerciseId);
     if (!e) throw new Error("Unknown activity.");
-    const answer = b.answer || "";
+    const answer = e.personalPractice ? "practised" : b.answer || "";
     let correct = isCorrect(e, answer);
     if (e.type === "match")
       correct = normalize(answer) === normalize(JSON.stringify(e.pairs));

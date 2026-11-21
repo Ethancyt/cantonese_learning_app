@@ -166,7 +166,7 @@ export async function applyLearningDatabase(
       "grant usage on schema public to authenticated; grant select,insert,update,delete on public.profiles,public.workshops,public.journeys,public.source_materials,public.source_chunks,public.lessons,public.published_versions,public.vocabulary,public.exercises,public.lesson_exercises,public.student_attempts,public.lesson_completions,public.student_mastery,public.ai_generations,public.content_reports,public.learning_modules,public.module_sections to authenticated; grant select on public.published_versions to anon;",
     );
     await runSQL("commit");
-    return "Database ready: tables, access policies, and four learning modules installed. Existing published versions and learner records are preserved.";
+    return "Database ready: tables, access policies, and Workshop 1 installed. Existing published versions and learner records are preserved.";
   } catch (e) {
     await runSQL("rollback").catch(() => {});
     throw e;

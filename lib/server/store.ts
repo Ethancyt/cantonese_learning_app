@@ -2,6 +2,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Attempt, Completion, Lesson, Source } from "../schema";
 import { seedLessons } from "../seeds";
+import {
+  isRetiredDemoSource,
+  retiredSystemLessonIds,
+} from "../content/retired-content";
 export type Database = {
   lessons: Lesson[];
   versions: Lesson[];
@@ -64,6 +68,20 @@ export async function snapshot() {
 
 // Old snapshots and attempts keep their version; only untouched system lessons upgrade.
 export function upgradeCurriculum(db: Database): Database {
+  const retiredSources = new Set(
+    db.sources.filter(isRetiredDemoSource).map((source) => source.id),
+  );
+  for (const lesson of db.lessons) {
+    if (
+      lesson.status === "published" &&
+      ((lesson.createdBy === "system" &&
+        retiredSystemLessonIds.includes(lesson.id)) ||
+        (lesson.sourceMaterialId &&
+          retiredSources.has(lesson.sourceMaterialId)))
+    ) {
+      lesson.status = "archived";
+    }
+  }
   for (const seed of seedLessons) {
     const current = db.lessons.find((l) => l.id === seed.id);
     if (

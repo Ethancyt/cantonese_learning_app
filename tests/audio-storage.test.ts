@@ -42,7 +42,7 @@ test("private audio storage hides drafts, protects immutable files and serves pu
     owner,
     other,
   ]);
-  const lesson = structuredClone(seedLessons[1]);
+  const lesson = structuredClone(seedLessons[0]);
   lesson.id = "private-audio";
   lesson.createdBy = owner;
   lesson.status = "under_review";

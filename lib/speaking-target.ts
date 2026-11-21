@@ -16,7 +16,8 @@ export function speakingTarget(
   vocabularyId?: string,
 ): string | null {
   const exercise = lesson.exercises.find((e) => e.id === exerciseId);
-  if (exercise?.type === "speak") return exercise.answer;
+  if (exercise?.type === "speak")
+    return exercise.personalPractice ? null : exercise.answer;
   if (exercise?.type !== "flashcard" || !vocabularyId) return null;
   return (
     exerciseVocabulary(lesson, exercise).find((v) => v.id === vocabularyId)

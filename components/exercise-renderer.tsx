@@ -108,10 +108,10 @@ export function ExerciseRenderer({
           )}
         </>
       )}
-      {["listen_choose", "speak"].includes(e.type) && (
+      {!e.personalPractice && ["listen_choose", "speak"].includes(e.type) && (
         <ListenButton lesson={lesson} text={exerciseAudioText(e)} />
       )}
-      {e.type === "speak" && e.answer !== e.prompt && (
+      {e.type === "speak" && !e.personalPractice && e.answer !== e.prompt && (
         <p className="help-text">
           Say: <strong>{e.answer}</strong>
         </p>
@@ -370,7 +370,15 @@ export function ExerciseRenderer({
           </button>
         </>
       )}
-      {e.type === "speak" && (
+      {e.personalPractice && (
+        <PersonalPractice
+          frames={e.personalPractice}
+          vocabulary={lesson.vocabulary}
+          disabled={disabled}
+          onReady={(ready) => onAnswer("practised", ready)}
+        />
+      )}
+      {e.type === "speak" && !e.personalPractice && (
         <Speaking
           lesson={lesson}
           exercise={e}
@@ -389,6 +397,85 @@ export function ExerciseRenderer({
     </div>
   );
 }
+function PersonalPractice({
+  frames,
+  vocabulary,
+  disabled,
+  onReady,
+}: {
+  frames: NonNullable<Exercise["personalPractice"]>;
+  vocabulary: Lesson["vocabulary"];
+  disabled: boolean;
+  onReady: (ready: boolean) => void;
+}) {
+  const [values, setValues] = useState(() => frames.map(() => ""));
+  return (
+    <div className="form-grid">
+      <p className="help-text full-width">
+        Use your preferred name and any real or fictional details you choose.
+        Enter a city or area for your home. Your entries stay in this exercise.
+      </p>
+      {frames.map((frame, i) => {
+        const value = values[i].trim();
+        const word = vocabulary.find((word) =>
+          [word.traditional, word.english].some(
+            (text) => text.toLowerCase() === value.toLowerCase(),
+          ),
+        );
+        return (
+          <div className="field full-width" key={frame.label}>
+            <label className="field">
+              {frame.label}
+              <input
+                autoComplete="off"
+                maxLength={70}
+                disabled={disabled}
+                value={values[i]}
+                onChange={(event) => {
+                  setValues(
+                    values.map((entry, index) =>
+                      index === i ? event.target.value : entry,
+                    ),
+                  );
+                  onReady(false);
+                }}
+              />
+            </label>
+            <div className="dialogue-line">
+              <strong lang="zh-HK">
+                {frame.traditional.replace(
+                  "＿＿",
+                  () => word?.traditional || value || "＿＿",
+                )}
+              </strong>
+              <div className="jyutping">
+                {frame.yale.replace(
+                  "＿＿",
+                  () => word?.jyutping || value || "＿＿",
+                )}
+              </div>
+              <p>
+                {frame.english.replace(
+                  "＿＿",
+                  () => word?.english || value || "＿＿",
+                )}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="btn secondary"
+        disabled={disabled || values.some((value) => !value.trim())}
+        onClick={() => onReady(true)}
+      >
+        I said it aloud
+      </button>
+    </div>
+  );
+}
+
 function Speaking({
   lesson,
   exercise,

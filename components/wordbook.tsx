@@ -9,6 +9,7 @@ export function Wordbook() {
   const { data, request, refresh } = useApp();
   const [filter, setFilter] = useState("All words"),
     [saved, setSaved] = useState<string[]>([]),
+    [olderVocabulary, setOlderVocabulary] = useState<Vocabulary[]>([]),
     [review, setReview] = useState<
       { lesson: Lesson; exercise: Exercise }[] | null
     >(null),
@@ -24,6 +25,25 @@ export function Wordbook() {
   useEffect(() => {
     setSaved(JSON.parse(localStorage.getItem("saved-words") || "[]"));
   }, []);
+  useEffect(() => {
+    if (filter !== "Saved" || !saved.length) return;
+    let active = true;
+    Promise.all([import("@/lib/content/modules"), import("@/lib/seeds")])
+      .then(([{ curriculumModules }, { legacySeedLessons }]) => {
+        if (active)
+          setOlderVocabulary(
+            [...legacySeedLessons, ...curriculumModules].flatMap((lesson) =>
+              lesson.vocabulary.filter((word) =>
+                saved.includes(word.traditional),
+              ),
+            ),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [filter, saved]);
   if (!data)
     return (
       <DataBoundary>
@@ -32,7 +52,10 @@ export function Wordbook() {
     );
   const vocabulary = [
     ...new Map(
-      data.lessons.flatMap((l) => l.vocabulary).map((v) => [v.traditional, v]),
+      [
+        ...(filter === "Saved" ? olderVocabulary : []),
+        ...data.lessons.flatMap((l) => l.vocabulary),
+      ].map((v) => [v.traditional, v]),
     ).values(),
   ];
   const words = vocabulary.filter(

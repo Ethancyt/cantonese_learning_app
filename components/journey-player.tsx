@@ -94,6 +94,10 @@ export function JourneyPlayer({
         </Link>
       </div>
     );
+  const references = [
+    ...(lesson.module?.references ?? []),
+    ...(lesson.module?.reference ? [lesson.module.reference] : []),
+  ];
   const attempted = new Set(
     data.attempts
       .filter((a) => a.lessonId === lesson.id && a.version === lesson.version)
@@ -449,22 +453,25 @@ export function JourneyPlayer({
               ))}
             </ul>
             <p className="help-text">
-              After-class practice · Traditional Chinese + Jyutping + English.
+              After-class practice · Traditional Chinese +{" "}
+              {lesson.module?.romanisation === "yale"
+                ? "Yale romanisation"
+                : "Jyutping"}{" "}
+              + English.
             </p>
           </div>
-          {lesson.module?.reference && (
+          {references.length > 0 && (
             <div className="info-panel panel module-reference">
-              <a
-                href={lesson.module.reference.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {lesson.module.reference.title} ↗
-              </a>
-              <p className="help-text">
-                Practice adapted to this unit’s topics. Open the original class
-                material to compare notes; this app uses modern Jyutping.
-              </p>
+              <h3>Workshop materials</h3>
+              <ul className="objectives">
+                {references.map((reference) => (
+                  <li key={reference.url}>
+                    <a href={reference.url} target="_blank" rel="noreferrer">
+                      {reference.title} ↗
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {lesson.culturalNotes.map((c) => (

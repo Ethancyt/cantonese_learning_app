@@ -33,7 +33,6 @@ import {
   isCorrect,
   lessonSchema,
 } from "@/lib/schema";
-import { demoMaterial } from "@/lib/seeds";
 import { ExerciseRenderer, typeLabels } from "./exercise-renderer";
 const steps = [
   "Upload",
@@ -112,12 +111,12 @@ export function Studio() {
     });
     setPreviewFeedback("");
   }
-  async function upload(useDemo = false) {
+  async function upload() {
     const form = new FormData();
-    if (file && !useDemo) form.set("file", file);
+    if (file) form.set("file", file);
     else {
-      form.set("text", useDemo ? demoMaterial : text);
-      form.set("filename", useDemo ? "Workshop Demo — 茶餐廳" : filename);
+      form.set("text", text);
+      form.set("filename", filename);
     }
     await run(async () => {
       const result = await request("/api/studio", form);
@@ -349,28 +348,6 @@ export function Studio() {
             </div>
           ))}
         </section>
-        <div className="review-banner panel">
-          <div>
-            <span className="eyebrow">TRY THE FYP DEMONSTRATION</span>
-            <h2>☕ From workshop slides to 去茶餐廳</h2>
-            <p>
-              Explore an original café workshop sample. Extract → generate →
-              edit → approve → publish.
-            </p>
-          </div>
-          <button
-            className="btn secondary"
-            disabled={busy}
-            onClick={() => {
-              reset();
-              setText(demoMaterial);
-              setFilename("Workshop Demo — 茶餐廳");
-            }}
-          >
-            Try sample workshop
-            <ArrowRight size={17} />
-          </button>
-        </div>
         <div className="section-heading">
           <div>
             <h2>Your teaching corner</h2>
@@ -439,10 +416,7 @@ export function Studio() {
         {!displayed.length && (
           <div className="empty panel">
             <h3>A new adventure starts with your workshop.</h3>
-            <p>
-              Upload a material or try the café sample to create your first
-              draft.
-            </p>
+            <p>Upload workshop materials to create your first draft.</p>
           </div>
         )}
         {tab === "My workshops" && data.sources.length > 0 && (
@@ -611,13 +585,6 @@ export function Studio() {
               PDFs need text recognition before uploading.
             </p>
             <div className="studio-actions">
-              <button
-                className="btn secondary"
-                disabled={busy}
-                onClick={() => upload(true)}
-              >
-                Use café demo material
-              </button>
               <button
                 className="btn"
                 disabled={busy || (!file && !text.trim())}
@@ -977,6 +944,78 @@ export function Studio() {
                     }
                   />
                 </label>
+                <fieldset className="form-grid">
+                  <legend>Learner reference links</legend>
+                  {(lesson.module.references ?? []).map((reference, index) => (
+                    <div className="field full-width" key={index}>
+                      <label className="field">
+                        Reference title
+                        <input
+                          value={reference.title}
+                          maxLength={150}
+                          onChange={(event) => {
+                            const references = lesson.module!.references!.map(
+                              (item, i) =>
+                                i === index
+                                  ? { ...item, title: event.target.value }
+                                  : item,
+                            );
+                            edit({ module: { ...lesson.module!, references } });
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Learner-accessible HTTPS link
+                        <input
+                          value={reference.url}
+                          onChange={(event) => {
+                            const references = lesson.module!.references!.map(
+                              (item, i) =>
+                                i === index
+                                  ? { ...item, url: event.target.value }
+                                  : item,
+                            );
+                            edit({ module: { ...lesson.module!, references } });
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="text-link icon-btn"
+                        onClick={() =>
+                          edit({
+                            module: {
+                              ...lesson.module!,
+                              references: lesson.module!.references!.filter(
+                                (_, i) => i !== index,
+                              ),
+                            },
+                          })
+                        }
+                      >
+                        <Trash2 size={15} /> Remove reference
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    disabled={(lesson.module.references?.length ?? 0) >= 10}
+                    onClick={() =>
+                      edit({
+                        module: {
+                          ...lesson.module!,
+                          references: [
+                            ...(lesson.module!.references ?? []),
+                            { title: "", url: "" },
+                          ],
+                        },
+                      })
+                    }
+                  >
+                    <Plus size={15} /> Add reference link
+                  </button>
+                </fieldset>
                 {lesson.module.sections.map((section, n) => (
                   <div className="teaching-points" key={section.id}>
                     <label className="field">
@@ -1484,9 +1523,9 @@ export function Studio() {
                   checked={approval}
                   onChange={(e) => setApproval(e.target.checked)}
                 />
-                I checked the Cantonese, Jyutping, answers, source grounding,
-                and suitability for learners. I have permission to use the
-                source material.
+                I checked the Cantonese, romanisation, answers, source
+                grounding, and suitability for learners. I have permission to
+                use the source material.
               </label>
               <p>
                 {lesson.exercises.length} activities ·{" "}

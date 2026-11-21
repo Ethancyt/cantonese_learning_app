@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seedLessons } from "../lib/seeds";
+import { seedLessons as workshopLessons } from "../lib/seeds";
+const [workshop] = workshopLessons;
+const seedLessons = [
+  workshop,
+  { ...workshop, id: "other-workshop" },
+  { ...workshop, id: "later-workshop" },
+];
 import type { Attempt, Completion } from "../lib/schema";
 import { lessonActivityProgress, lessonToContinue } from "../lib/lesson-resume";
 

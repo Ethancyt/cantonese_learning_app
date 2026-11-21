@@ -13,7 +13,7 @@ npm run dev
 
 Startup checks installed packages against the lockfile and automatically installs missing or updated dependencies. This also handles new packages after `git pull`; you do not need to edit code or install individual packages.
 
-The development server defaults to **demo mode** without any accounts or API keys. Entering volunteer demo mode seeds an original café source document in your Studio. For a production build of an isolated presentation demo:
+The development server defaults to **demo mode** without any accounts or API keys. Workshop 1 is available to learners immediately. For a production build of an isolated presentation demo:
 
 ```sh
 npm run build
@@ -24,26 +24,19 @@ Open **http://localhost:3000** in your local browser. Visit **http://localhost:3
 
 Demo content, drafts, immutable published versions, attempts, completions, reports, source text, and generation records persist in `.data/demo.json`. This file is ignored by Git. Demo learners have an anonymous HTTP-only cookie identity. Saved vocabulary bookmarks are kept on the current browser/device. Back up `.data` to retain a presentation; delete it only when intentionally resetting a disposable demo. The local atomic file store is for **one running server process** with persistent disk, not multi-instance or serverless production.
 
-## Presentation walkthrough
+## Workshop walkthrough
 
-1. Browse Lesson 1 (Cantonese foundations and study tools), Lesson 2 (greetings), Lesson 3 (introductions, hobbies, and family), and Lesson 4 (manners). They follow the EduHK Units 1–4 linked by the user.
-2. Open a journey, reveal vocabulary cards, save a word, and complete an activity. Wrong answers are saved for review.
-3. Try speaking: record and replay your own audio, or practise aloud. Without a speech provider, no transcription or pronunciation score is invented.
-4. Try the workshop buddy. Unconfigured AI uses visibly labelled, constrained scripted replies.
-5. Switch to volunteer mode. Choose **Try sample workshop**, then **Find the learning content**.
-6. Review the café vocabulary, Jyutping, objectives, and source sections. Select practice types and generate a draft.
-7. Edit an instruction or question. Preview uses the same renderer as student practice. Save the draft.
-8. Continue to publication, check the human review acknowledgement, click **Approve this draft**, and then **Publish to students**.
-9. The new journey appears immediately on the student dashboard. Complete its activities and show XP, mistakes, and the personalized wordbook.
-10. In Studio, choose **Create revision** on a published journey. Version 1 stays available until reviewed Version 2 is published. Previous published snapshots remain immutable.
-
-Analytics display **actual workspace activity**, not fabricated figures. An empty workspace correctly starts at zero.
+1. Open **Workshop 1 · Greetings and introductions**. Choose any section or resume your next activity.
+2. Try a listening question, an MTR name match, and a sentence-building activity. Open the workshop reference links to consult the slides or notes.
+3. In **Introduce yourself**, rehearse with a name and places of your choice. Personal practice entries stay in the browser. The app saves a practice marker and offers pronunciation checks for the fixed course phrases.
+4. To add another workshop, switch to Volunteer Studio and choose **Create practice journey**. Upload the material or paste the instructor’s notes. Review the source and generated draft, then edit, approve, and publish it.
+5. In the draft editor, open **Review module teaching and context** to add reference links that learners can access. Published versions stay available until an approved revision replaces them or a volunteer administrator archives them.
 
 ## Architecture
 
 - **Next.js App Router + TypeScript** with reusable semantic, keyboard-accessible components and responsive CSS. Original SVG harbour and journey illustrations; no proprietary assets.
 - `lib/schema.ts`: strict Zod lesson, vocabulary, exercise and provenance contracts. All ten exercise types share `components/exercise-renderer.tsx`. No new React page is needed for a generated journey.
-- `lib/seeds.ts`: original workshop content for Units 0–3 and an original café workshop. EduHK [Survival Cantonese](https://www.eduhk.hk/cle/resources/cep/cantonese-survival-package/index.html) supplies topic/progression inspiration only. No source text, dialogue, audio, images or quizzes are reproduced.
+- `lib/content/workshop-one.ts` holds the taught Workshop 1 lesson. Lessons and Studio drafts share the same JSON contracts and activity renderer. Existing EduHK records remain available for resolving older saved words and historical versions.
 - `lib/server/extraction.ts`: TXT/Markdown, text PDFs, DOCX and PPTX extraction. File types, magic bytes, archive expansion, text size and uploaded size are checked. PDF keeps page numbers and PPTX keeps slide numbers; other formats retain the nearest source chunk. Scanned PDFs/OCR are outside the MVP.
 - `lib/ai/provider.ts`: replaceable `AIProvider` interface plus an OpenAI-compatible JSON text adapter. No vendor calls in UI code.
 - `lib/ai/lesson-generator.ts`: source extraction, reviewed learning content, relevant style retrieval, generation, strict validation and provenance checks. Published references guide structure only.
@@ -112,7 +105,7 @@ If a speech provider rejects a request, the website displays its HTTP status wit
 2. Create a developer password of at least 12 characters. This account is separate from student/volunteer roles.
 3. Under **AI lesson generation**, paste your OpenRouter key (default URL `https://openrouter.ai/api/v1`, model `openai/gpt-4.1-mini`). Under **Text-to-speech (TTS)**, paste your Azure Speech key into **Lesson voice API key**, select a Cantonese voice, and enter the resource region. Under **Speech-to-text (STT)**, paste that Azure key into **Speech API key** and enter its region again. Both Azure sections can use one Speech resource; OpenRouter is separate. The Azure selections call Microsoft’s regional Speech endpoints directly; no speech URL entry is needed. Compatible providers remain available. **Save & test** checks a real provider request, which may incur a small provider charge.
 4. For Supabase, open its dashboard from the page and create or select a project. Paste the project URL, public/publishable key, session-pooler PostgreSQL URI with database password, and secret/service-role key into the corresponding fields. Secret keys stay server-side; only the public key reaches the learner sign-in client.
-5. Click **Initialize learning database** to install tables, RLS policies, and the four module seeds. The app detects an existing installation and preserves published history and learner records. No SQL copying is required.
+5. Click **Initialize learning database** to install tables, RLS policies, and the Workshop 1 seed. The app detects an existing installation and preserves published history and learner records. No SQL copying is required.
 6. Create test student, volunteer, and administrator accounts using the page. Accounts are immediately enabled for workshop use and role assignment is performed on the server.
 7. Select **Connected accounts · Supabase**, save, and open the learning page to sign in. Changes take effect immediately without rebuilding or restarting.
 
@@ -133,25 +126,19 @@ TEST_BASE_URL=http://localhost:3000 npm test
 TEST_BASE_URL=http://localhost:3000 npx tsx scripts/browser-check.ts
 ```
 
-Browser checks need Chromium (`CHROMIUM_PATH` can override `/usr/bin/chromium`) and write screenshots to `/workspace/artifacts`. The general HTTP tests are skipped without `TEST_BASE_URL`. The Azure assessment HTTP test uses `TEST_AZURE_BASE_URL` pointing to a separate, fresh-data server. Start that server with `TEST_AZURE_SPEECH_MOCK=true`, `NODE_OPTIONS="--import ./tests/helpers/azure-speech-mock.mjs"`, and temporary `DEMO_DATA_DIR`/`DEVELOPER_DATA_DIR` paths; then run tests with both base URL variables set. The explicit test preload mocks Azure only for its test key; application code never loads it. The PostgreSQL permission test uses PGlite to apply the actual migration with minimal Auth/Storage shims; it checks publishing gates, role escalation, privacy, server-derived correctness and mastery. This is not a substitute for testing a configured live Supabase project.
+Browser checks use Playwright Chromium (`npx playwright install chromium`) or a browser at `CHROMIUM_PATH`. Screenshots are written to `artifacts/` or `BROWSER_ARTIFACT_DIR`. The general HTTP tests are skipped without `TEST_BASE_URL`. The Azure assessment HTTP test uses `TEST_AZURE_BASE_URL` pointing to a separate, fresh-data server. Start that server with `TEST_AZURE_SPEECH_MOCK=true`, `NODE_OPTIONS="--import ./tests/helpers/azure-speech-mock.mjs"`, and temporary `DEMO_DATA_DIR`/`DEVELOPER_DATA_DIR` paths; then run tests with both base URL variables set. The explicit test preload mocks Azure only for its test key; application code never loads it. The PostgreSQL permission test uses PGlite to apply the actual migration with minimal Auth/Storage shims; it checks publishing gates, role escalation, privacy, server-derived correctness and mastery. This is not a substitute for testing a configured live Supabase project.
 
 ## Deployment boundaries
 
 The complete local demonstration is operational. Live Supabase, AI, and Azure Speech endpoints require your credentials and separate live validation. Demo role switching is intentionally permissive: **do not expose `APP_MODE=demo` as a real multi-user children's platform**. Real deployments require Supabase mode, TLS, staff provisioning, consent/retention policies and provider review appropriate to your actual users. Current in-memory rate limiting assumes one process; use a shared limiter before scaling across instances. Retrieved source documents and generated educational content always need human review; output validation does not certify linguistic correctness.
 
-## Numbered after-class lessons
+## Workshop 1 rollout
 
-The default journeys are four numbered lessons aligned with [EduHK Survival Cantonese Units 1–4](https://www.eduhk.hk/cle/resources/cep/cantonese-survival-package/index.html). The public unit pages and vocabulary tables were read on 8 October 2026. Each lesson links to its own original unit and contains a lecture recap, teaching points, vocabulary in context, original dialogues, sentence examples, listening, grammar activities, Azure pronunciation checks, conversation practice, and a final review. Learners can practise one section at a time; these are after-class activities rather than a replacement for the lecture.
+The starter library now contains the Cantonese workshop held on **13 November 2026**. It follows the presentation and student notes, with Traditional Chinese, Yale and English. Amina, Daniel and Maya are fictional practice characters. The lesson links to browser-readable text editions of the presentation and student notes, including the notes’ exercises, answer key and vocabulary appendices. The original PDF artwork and maps can be linked from the draft editor when learner-accessible copies are available.
 
-| Lesson | Lecture coverage                                                                          | Sections | Vocabulary | Activities |
-| ------ | ----------------------------------------------------------------------------------------- | -------- | ---------- | ---------- |
-| 1      | Romanization, initials/finals, six tones, 我係, dictionary tools, and vocabulary logs     | 6        | 32         | 26         |
-| 2      | Greetings, forms of address, names/origins, SVO word order, wellbeing, and destinations   | 6        | 41         | 26         |
-| 3      | Age/work, leisure, A-not-A questions, family, living arrangements, and profile vocabulary | 7        | 42         | 29         |
-| 4      | Thanks, descriptions, borrowing/help, apologies, repetition, good wishes, and register    | 7        | 38         | 30         |
+- **Existing Supabase installation.** Back up the database, then run **Developer setup → Initialize learning database** with the new release, or generate the content SQL with `npx tsx scripts/seed-supabase.ts > workshop-1-content.sql` and apply it once to the existing project through the Supabase SQL Editor as the database owner. This release uses the existing JSON schema and requires no new schema migration. If an installation predates the module or audio migrations, run the existing database initialization first.
+- **Fresh Supabase installation.** Configure the project in Developer setup, initialize the database, then provision staff and learner accounts. No example character is provisioned.
+- **Content and history.** Seeding uses the new lesson ID `workshop-2026-11-13` and can be safely repeated. It archives the former system content and publications based on the original café demo source. It retains published snapshots, source files, profiles, attempts, and completions. Existing demo files receive the same upgrade when loaded.
+- **Hosting.** Build with `npm ci` and `npm run build`. Run `npm run start:hosted` on a Node.js host with HTTPS and the existing production environment/persistent configuration. Configure the existing Azure speech providers if the deployment uses them. After seeding, sign in with a test learner and check the dashboard, both references, a listening item, completion, and Studio access with a staff account.
 
-`lib/content/survival-course.ts` is the reviewed practice content; `lib/content/modules.ts` builds strict lesson records. The source course uses a numbered notation influenced by Yale; the app consistently provides modern Jyutping and explains the difference. Activities and dialogues are original adaptations of the unit topics; source prose, table images, and audio files are not redistributed. The remaining EduHK Units 5–15 are outside this requested first batch.
-
-Stable lesson IDs are retained and the curriculum advances to version 3. Demo mode automatically upgrades published system lessons on load, preserving previous published snapshots, attempts, completions, uploaded workshops, and drafts being edited. Completion badges match the current version, so finishing an old lesson does not mark the new activities complete. In Supabase mode, run **Developer setup → Initialize learning database** again to apply the numbered curriculum; the existing installation and learner history are retained. Schema/RLS validation and idempotent seeding remain part of the database checks.
-
-To update your Windows Git checkout, stop its dev server and run `git pull origin main`. Double-click `Start-Workshop.cmd` to install dependencies and open setup, or run `npm ci` and `npm run dev`. Preserve `.data` and any existing `.env.local`. Existing demo version 1/2 progress is preserved and the new curriculum appears as version 3. Your local Windows filesystem cannot be modified from this cloud workspace.
+Future workshops can be published entirely in the Volunteer Studio with reviewed activities and their own learner-accessible reference links.

@@ -49,6 +49,20 @@ export const exerciseSchema = z
       .array(z.object({ left: z.string(), right: z.string() }).strict())
       .optional(),
     tokens: z.array(z.string()).optional(),
+    personalPractice: z
+      .array(
+        z
+          .object({
+            label: z.string().min(1).max(80),
+            traditional: z.string().includes("＿＿"),
+            yale: z.string().includes("＿＿"),
+            english: z.string().includes("＿＿"),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(5)
+      .optional(),
     provenance: provenanceSchema.optional(),
   })
   .strict()
@@ -84,7 +98,16 @@ export const exerciseSchema = z
         code: "custom",
         message: "Sentence tokens must construct the answer.",
       });
-    if (["fill_blank", "speak"].includes(e.type) && !e.answer)
+    if (e.personalPractice && e.type !== "speak")
+      c.addIssue({
+        code: "custom",
+        message: "Personal prompts require speaking practice.",
+      });
+    if (
+      (e.type === "fill_blank" ||
+        (e.type === "speak" && !e.personalPractice)) &&
+      !e.answer
+    )
       c.addIssue({ code: "custom", message: "This activity needs an answer." });
   });
 export const dialogueLineSchema = z
@@ -118,12 +141,33 @@ export const moduleSectionSchema = z
     exerciseIds: z.array(z.string()).min(1),
   })
   .strict();
+export const materialReferenceSchema = z
+  .object({
+    title: z.string().trim().min(1).max(150),
+    url: z
+      .string()
+      .trim()
+      .max(2000)
+      .refine(
+        (url) =>
+          /^\/workshop-materials\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:html|pdf)$/i.test(
+            url,
+          ) ||
+          (url.startsWith("https://") &&
+            z.string().url().safeParse(url).success),
+        "Use an HTTPS URL or a bundled workshop reference.",
+      ),
+  })
+  .strict();
 export const moduleSchema = z
   .object({
     unit: z.number().int().min(1),
     introduction: z.string(),
     situation: z.string(),
     sections: z.array(moduleSectionSchema).min(1),
+    // Reading strings retain their original JSON field names for old editions and Studio drafts.
+    romanisation: z.enum(["yale", "jyutping"]).optional(),
+    references: z.array(materialReferenceSchema).max(10).optional(),
     reference: z
       .object({
         title: z.string(),

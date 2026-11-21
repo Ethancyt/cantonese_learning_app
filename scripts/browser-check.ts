@@ -1,8 +1,12 @@
 import { chromium, expect } from "@playwright/test";
-import { demoMaterial } from "../lib/seeds";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { studioMaterial } from "../tests/helpers/studio-material";
 async function main() {
+  const artifacts = process.env.BROWSER_ARTIFACT_DIR || "artifacts";
+  await mkdir(artifacts, { recursive: true });
   const browser = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
+    executablePath: process.env.CHROMIUM_PATH,
     args: [
       "--no-sandbox",
       "--use-fake-device-for-media-stream",
@@ -24,14 +28,9 @@ async function main() {
   await expect(
     page.getByRole("heading", { name: /Your after-class lessons/ }),
   ).toBeVisible();
-  await expect(page.locator(".card-unit")).toHaveText([
-    "LESSON 1",
-    "LESSON 2",
-    "LESSON 3",
-    "LESSON 4",
-  ]);
+  await expect(page.locator(".card-unit")).toHaveText(["WORKSHOP 1"]);
   await page.screenshot({
-    path: "/workspace/artifacts/dashboard-desktop.png",
+    path: path.join(artifacts, "dashboard-desktop.png"),
     fullPage: true,
   });
   const moduleData = await (
@@ -44,10 +43,14 @@ async function main() {
     await expect(
       page.getByRole("heading", { name: lesson.title_zh, exact: true }),
     ).toBeVisible();
-    await expect(page.locator(".module-reference a")).toHaveAttribute(
-      "href",
-      lesson.module.reference.url,
-    );
+    const links = page.locator(".module-reference a");
+    await expect(links).toHaveCount(2);
+    for (const [index, reference] of lesson.module.references.entries()) {
+      await expect(links.nth(index)).toHaveAttribute("href", reference.url);
+      const response = await context.request.get(base + reference.url);
+      expect(response.ok()).toBe(true);
+      expect(await response.text()).toContain("13 November 2026");
+    }
     await expect(page.locator(".module-path-section")).toHaveCount(
       lesson.module.sections.length,
     );
@@ -56,7 +59,7 @@ async function main() {
       await expect(page.locator(".module-teaching h3").first()).toHaveText(
         lesson.module.sections[i].title,
       );
-      if (lesson.id === "introductions" && i === 0) {
+      if (i === 0) {
         await page.setViewportSize({ width: 390, height: 844 });
         await expect
           .poll(() =>
@@ -74,7 +77,7 @@ async function main() {
         )
           throw new Error("Mobile module overflow");
         await page.screenshot({
-          path: "/workspace/artifacts/module-mobile.png",
+          path: path.join(artifacts, "module-mobile.png"),
           fullPage: true,
         });
         await page.setViewportSize({ width: 1440, height: 1000 });
@@ -87,7 +90,7 @@ async function main() {
       );
       await page.getByRole("button", { name: "Back to journey map" }).click();
     }
-    if (lesson.id === "manners") {
+    if (lesson.id === "workshop-2026-11-13") {
       await page.getByRole("button", { name: "Begin my journey" }).click();
       for (const e of lesson.exercises) {
         if (
@@ -168,7 +171,18 @@ async function main() {
               .click();
         } else if (e.type === "fill_blank")
           await page.getByLabel("Your answer", { exact: true }).fill(e.answer);
-        else if (e.type === "speak") {
+        else if (e.personalPractice) {
+          const values = ["Sam", "Ghana", "Sha Tin"];
+          for (const [index, frame] of e.personalPractice.entries()) {
+            await page
+              .getByLabel(frame.label, { exact: true })
+              .fill(values[index]);
+            await expect(
+              page.locator(".dialogue-line").nth(index),
+            ).toContainText(values[index]);
+          }
+          await page.getByRole("button", { name: "I said it aloud" }).click();
+        } else if (e.type === "speak") {
           await page.getByRole("button", { name: "Start recording" }).click();
           await expect(
             page.getByRole("button", { name: "Stop recording" }),
@@ -218,14 +232,12 @@ async function main() {
   await expect(
     page.getByRole("heading", { name: "Your workshop, their next adventure." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Try sample workshop" }).click();
-  await expect(page.getByLabel("Or paste your workshop notes")).toContainText(
-    "奶茶",
-  );
+  await expect(page.getByText("Workshop Demo — 茶餐廳")).toHaveCount(0);
+  await page.getByRole("button", { name: "Create practice journey" }).click();
   await page.locator("#material-file").setInputFiles({
-    name: "Workshop Demo — 茶餐廳.txt",
+    name: "Example workshop upload.txt",
     mimeType: "text/plain",
-    buffer: Buffer.from(demoMaterial),
+    buffer: Buffer.from(studioMaterial),
   });
   await page.getByRole("button", { name: "Find the learning content" }).click();
   await expect(
@@ -241,7 +253,13 @@ async function main() {
   ).toBeVisible();
   await page
     .getByLabel("Instruction", { exact: true })
-    .fill("Explore our café workshop words");
+    .fill("Explore our workshop words");
+  await page.getByText("Review module teaching and context").click();
+  await page.getByRole("button", { name: "Add reference link" }).click();
+  await page.getByLabel("Reference title").fill("Class reading");
+  await page
+    .getByLabel("Learner-accessible HTTPS link")
+    .fill("https://example.com/class-notes.pdf");
   await page.getByRole("button", { name: "Ready to review & publish" }).click();
   await expect(
     page.getByRole("button", { name: "Publish to students" }),
@@ -253,18 +271,21 @@ async function main() {
   ).toBeEnabled();
   await page.getByRole("button", { name: "Publish to students" }).click();
   await expect(
-    page.getByRole("heading", { name: "去茶餐廳 is live." }),
+    page.getByRole("heading", { name: "工作坊練習 is live." }),
   ).toBeVisible();
   await page.screenshot({
-    path: "/workspace/artifacts/studio-published.png",
+    path: path.join(artifacts, "studio-published.png"),
     fullPage: true,
   });
   await page.getByRole("link", { name: "View student journey" }).click();
+  await expect(
+    page.getByRole("link", { name: /Class reading/ }),
+  ).toHaveAttribute("href", "https://example.com/class-notes.pdf");
   await page.getByRole("button", { name: "Begin my journey" }).click();
   const response = await context.request.get(base + "/api/data");
   const data = await response.json();
   const lesson = data.lessons
-    .filter((l: any) => l.title_zh === "去茶餐廳")
+    .filter((l: any) => l.title_zh === "工作坊練習")
     .at(-1);
   for (const e of lesson.exercises) {
     if (
@@ -374,7 +395,7 @@ async function main() {
   )
     throw new Error("Mobile horizontal overflow");
   await page.screenshot({
-    path: "/workspace/artifacts/dashboard-mobile.png",
+    path: path.join(artifacts, "dashboard-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Open navigation" }).click();
@@ -389,12 +410,12 @@ async function main() {
   )
     throw new Error("Mobile studio overflow");
   await page.screenshot({
-    path: "/workspace/artifacts/studio-mobile.png",
+    path: path.join(artifacts, "studio-mobile.png"),
     fullPage: true,
   });
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(
-    "Browser demonstration passed: edit, approval gate, publication, all 10 exercises, roleplay, completion, review, and mobile navigation.",
+    "Browser checks passed: Workshop 1, personal practice, references, Studio publication, review and mobile navigation.",
   );
   await browser.close();
 }

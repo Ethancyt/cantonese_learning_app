@@ -323,11 +323,11 @@ export async function generate(
     lesson = lessonSchema.parse({
       id,
       title: "Your workshop practice",
-      title_zh: source.filename.includes("茶餐廳") ? "去茶餐廳" : "工作坊練習",
+      title_zh: "工作坊練習",
       description: "A little practice made from your workshop material.",
       level: settings.level,
       estimated_minutes: settings.minutes,
-      icon: source.filename.includes("茶餐廳") ? "☕" : "📚",
+      icon: "📚",
       topic: "Workshop practice",
       workshop: source.filename,
       availability: "available",

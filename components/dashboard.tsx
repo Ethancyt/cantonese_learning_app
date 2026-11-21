@@ -28,6 +28,7 @@ export function Dashboard() {
         <div />
       </DataBoundary>
     );
+  const word = data.lessons[0]?.vocabulary[0];
   const done = (lesson: Lesson) => lessonCompleted(lesson, data.completions);
   const current = lessonToContinue(
     data.lessons,
@@ -45,10 +46,7 @@ export function Dashboard() {
     (section) => nextExercise && section.exerciseIds.includes(nextExercise.id),
   );
   const filtered = data.lessons.filter(
-    (l) =>
-      filter === "All lessons" ||
-      (filter === "From my workshop" && l.createdBy !== "system") ||
-      (filter === "Completed" && done(l)),
+    (l) => filter === "All lessons" || (filter === "Completed" && done(l)),
   );
   return (
     <DataBoundary>
@@ -174,8 +172,7 @@ export function Dashboard() {
           <div>
             <h2>Your after-class lessons</h2>
             <p>
-              Follow Lessons 1–4 alongside your Cantonese class, then review
-              what you’ve learned.
+              Practise what you learned in your workshop and review your words.
             </p>
           </div>
           <span className="small-label">
@@ -183,7 +180,7 @@ export function Dashboard() {
           </span>
         </div>
         <div className="filter-row" role="group" aria-label="Filter journeys">
-          {["All lessons", "From my workshop", "Completed"].map((f) => (
+          {["All lessons", "Completed"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -206,7 +203,7 @@ export function Dashboard() {
                 <div className="card-art">
                   <span className="card-unit">
                     {l.createdBy === "system"
-                      ? `LESSON ${l.module?.unit || data.lessons.indexOf(l) + 1}`
+                      ? `WORKSHOP ${l.module?.unit || data.lessons.indexOf(l) + 1}`
                       : "YOUR WORKSHOP"}
                   </span>
                   {done(l) && (
@@ -270,24 +267,26 @@ export function Dashboard() {
         )}
       </section>
       <section className="bottom-grid">
-        <div className="word-card panel">
-          <div className="section-heading">
-            <h3>A word to practise</h3>
-            <span className="word-tag">MANNERS</span>
-          </div>
-          <div className="word-detail">
-            <span className="word-symbol">唔該</span>
-            <div>
-              <span className="jyutping">m4 goi1</span>
-              <p>Thank you · Please</p>
+        {word && (
+          <div className="word-card panel">
+            <div className="section-heading">
+              <h3>A word to practise</h3>
             </div>
-            <ListenButton text="唔該" />
+            <div className="word-detail">
+              <span className="word-symbol" lang="zh-HK">
+                {word.traditional}
+              </span>
+              <div>
+                <span className="jyutping">{word.jyutping}</span>
+                <p>{word.english}</p>
+              </div>
+              <ListenButton text={word.traditional} />
+            </div>
+            <Link href="/review" className="text-link">
+              Open my wordbook <ArrowRight size={15} />
+            </Link>
           </div>
-          <p>Little words go a long way. Try it when someone helps you.</p>
-          <Link href="/review" className="text-link">
-            Open my wordbook <ArrowRight size={15} />
-          </Link>
-        </div>
+        )}
         <div className="workshop-note panel">
           <div className="note-icon">
             <Headphones size={24} />

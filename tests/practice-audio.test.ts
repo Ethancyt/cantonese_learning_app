@@ -13,7 +13,10 @@ test("existing courses authorize card pronunciation only for the displayed secti
   for (const lesson of seedLessons) {
     for (const exercise of lesson.exercises) {
       if (exercise.type === "speak") {
-        assert.equal(speakingTarget(lesson, exercise.id), exercise.answer);
+        assert.equal(
+          speakingTarget(lesson, exercise.id),
+          exercise.personalPractice ? null : exercise.answer,
+        );
       } else if (exercise.type === "flashcard") {
         const words = exerciseVocabulary(lesson, exercise);
         assert.ok(words.length);
