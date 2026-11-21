@@ -17,7 +17,8 @@
     "predev": "node scripts/ensure-dependencies.mjs dev",
     "prebuild": "node scripts/ensure-dependencies.mjs build",
     "prestart": "node scripts/ensure-dependencies.mjs start",
-    "prestart:hosted": "node scripts/ensure-dependencies.mjs hosted"
+    "prestart:hosted": "node scripts/ensure-dependencies.mjs hosted",
+    "build:cloudflare": "opennextjs-cloudflare build"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",
@@ -25,7 +26,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.9.0",
-    "next": "^15.5.12",
+    "next": "15.5.29",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.1",
     "react": "^19.1.0",
@@ -41,7 +42,9 @@
     "@types/react-dom": "^19.0.0",
     "prettier": "^3.9.9",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@opennextjs/cloudflare": "1.20.18",
+    "wrangler": "4.166.0"
   },
   "engines": {
     "node": ">=22.3.0"

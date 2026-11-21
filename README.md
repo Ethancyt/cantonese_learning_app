@@ -142,3 +142,22 @@ The starter library now contains the Cantonese workshop held on **13 November 20
 - **Hosting.** Build with `npm ci` and `npm run build`. Run `npm run start:hosted` on a Node.js host with HTTPS and the existing production environment/persistent configuration. Configure the existing Azure speech providers if the deployment uses them. After seeding, sign in with a test learner and check the dashboard, both references, a listening item, completion, and Studio access with a staff account.
 
 Future workshops can be published entirely in the Volunteer Studio with reviewed activities and their own learner-accessible reference links.
+
+## Cloudflare Workers
+
+The checked-in Wrangler configuration targets the existing
+`cantonese-learning-app` Worker. OpenNext's `WORKER_SELF_REFERENCE` service
+points to that same Worker. Install the locked dependencies with `npm ci`
+and generate the Worker with `npm run build:cloudflare`.
+
+In Workers & Pages, set the build command to `npm run build:cloudflare`.
+Use `npx wrangler preview` for branch builds and `npx wrangler deploy`
+for production. Preview builds can be verified before merging a release to
+`main`.
+
+Before serving learner traffic, set the Worker runtime variables
+`APP_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`, and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Apply the Workshop 1 content seed
+to the active Supabase project as described above. Use Worker secrets for any
+server-only credentials. Use the environment-based configuration on Workers,
+since its local filesystem cannot persist settings or learner data.
