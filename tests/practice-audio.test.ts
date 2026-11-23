@@ -102,3 +102,59 @@ test("lesson voice cache reuses phrases, merges simultaneous requests, and respe
   });
   assert.equal(calls, 2);
 });
+
+test("Workers reuse cached listening clips and synthesize when the cache is unavailable", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const cacheDescriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (cacheDescriptor)
+      Object.defineProperty(globalThis, "caches", cacheDescriptor);
+    else Reflect.deleteProperty(globalThis, "caches");
+  });
+  const clips = new Map<string, Response>();
+  const cache = {
+    async match(request: Request) {
+      return clips.get(request.url)?.clone();
+    },
+    async put(request: Request, response: Response) {
+      clips.set(request.url, response.clone());
+    },
+  };
+  const storage = {
+    async open(name: string) {
+      assert.equal(name, "cantonese-listening-audio");
+      return cache;
+    },
+  };
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: storage,
+  });
+  const settings = {
+    ...(await readSettings()),
+    ttsProvider: "azure" as const,
+    ttsKey: "test-worker-key",
+  };
+  const bytes = Buffer.alloc(128);
+  bytes.write("ID3");
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response(bytes, { headers: { "Content-Type": "audio/mpeg" } });
+  };
+  const origin = "https://cantonese-preview.example";
+  assert.deepEqual(await listeningAudio("你好", settings, origin), bytes);
+  assert.deepEqual(await listeningAudio("你好", settings, origin), bytes);
+  assert.equal(calls, 1);
+  assert.match(
+    [...clips.keys()][0],
+    /^https:\/\/cantonese-preview\.example\/__listening_audio_cache\//,
+  );
+
+  storage.open = async () => {
+    throw new Error("Cache unavailable");
+  };
+  assert.deepEqual(await listeningAudio("早晨", settings, origin), bytes);
+  assert.equal(calls, 2);
+});

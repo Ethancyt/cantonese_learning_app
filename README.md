@@ -161,3 +161,14 @@ Before serving learner traffic, set the Worker runtime variables
 to the active Supabase project as described above. Use Worker secrets for any
 server-only credentials. Use the environment-based configuration on Workers,
 since its local filesystem cannot persist settings or learner data.
+
+To enable Cantonese listening and pronunciation checks, set
+`AZURE_SPEECH_KEY` as a Worker secret and `AZURE_SPEECH_REGION` to the
+resource's region (for example, `eastasia`). The same Azure Speech resource
+powers both controls, and listening defaults to the Cantonese HiuMaan voice.
+For the Workshop 1 branch preview, run
+`npx wrangler preview secret put AZURE_SPEECH_KEY --name replace-demo-with-nov-2026-workshop`
+and enter the key at the prompt. If the resource is outside East Asia, use
+the same command with `AZURE_SPEECH_REGION` and enter its region. The on-demand
+audio uses the Workers Cache API where available, with direct synthesis when
+the preview bypasses the cache.

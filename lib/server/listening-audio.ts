@@ -7,12 +7,42 @@ const pending = new Map<string, Promise<Buffer>>();
 
 // Call only after resolving the phrase against an authorized lesson. This cache
 // contains lesson voice examples, never learner recordings or provider keys.
-export async function listeningAudio(text: string, settings: Settings) {
+export async function listeningAudio(
+  text: string,
+  settings: Settings,
+  origin?: string,
+) {
+  const key = clipIdentity(text, settings);
+  if (origin && typeof globalThis.caches?.open === "function") {
+    // Workers cannot persist a local file cache. Use an edge cache for example
+    // clips where available, and still serve the audio if caching is disabled.
+    const request = new Request(
+      new URL(`/__listening_audio_cache/${key}.mp3`, origin),
+    );
+    const cache = await caches
+      .open("cantonese-listening-audio")
+      .catch(() => null);
+    const cached = await cache?.match(request).catch(() => undefined);
+    if (cached) return Buffer.from(await cached.arrayBuffer());
+
+    const audio = await synthesize(text, settings);
+    await cache
+      ?.put(
+        request,
+        new Response(new Uint8Array(audio), {
+          headers: {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "max-age=604800",
+          },
+        }),
+      )
+      .catch(() => {});
+    return audio;
+  }
   const root = path.join(
     process.env.DEMO_DATA_DIR || path.join(process.cwd(), ".data"),
     "listening-audio",
   );
-  const key = clipIdentity(text, settings);
   const filename = path.join(root, `${key}.mp3`);
   try {
     return await fs.readFile(filename);

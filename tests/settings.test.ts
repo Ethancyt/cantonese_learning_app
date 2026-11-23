@@ -311,3 +311,47 @@ test("legacy environment keys retain their provider and models while explicit Az
   assert.equal(migrated.speechKey, "");
   assert.doesNotMatch(migrated.speechUrl, /knowlez/);
 });
+
+test("one Azure environment key configures playback and assessment without changing legacy provider routing", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "cantonese-azure-env-"));
+  for (const name of [
+    "DEVELOPER_DATA_DIR",
+    "AZURE_SPEECH_KEY",
+    "AZURE_SPEECH_REGION",
+    "SPEECH_API_URL",
+    "SPEECH_API_KEY",
+    "SPEECH_PROVIDER",
+    "SPEECH_REGION",
+  ]) {
+    const previous = process.env[name];
+    delete process.env[name];
+    t.after(() => {
+      if (previous === undefined) delete process.env[name];
+      else process.env[name] = previous;
+    });
+  }
+  t.after(() => rm(root, { recursive: true, force: true }));
+  process.env.DEVELOPER_DATA_DIR = root;
+  process.env.AZURE_SPEECH_KEY = " azure-env-test-key ";
+  process.env.AZURE_SPEECH_REGION = " southeastasia ";
+  const settings = await readSettings();
+  assert.equal(settings.ttsProvider, "azure");
+  assert.equal(settings.speechProvider, "azure");
+  assert.equal(settings.ttsKey, "azure-env-test-key");
+  assert.equal(settings.speechKey, "azure-env-test-key");
+  assert.equal(settings.azureRegion, "southeastasia");
+  assert.equal(settings.speechRegion, "southeastasia");
+  assert.doesNotMatch(
+    JSON.stringify(publicConfiguration(settings)),
+    /azure-env-test-key/,
+  );
+
+  process.env.SPEECH_PROVIDER = "compatible";
+  assert.equal((await readSettings()).speechKey, "");
+  delete process.env.SPEECH_PROVIDER;
+  process.env.SPEECH_API_KEY = "legacy-env-test-key";
+  const legacy = await readSettings();
+  assert.equal(legacy.speechProvider, "compatible");
+  assert.equal(legacy.speechKey, "legacy-env-test-key");
+  assert.equal(legacy.ttsKey, "azure-env-test-key");
+});

@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         { available: false },
         { headers: { "Cache-Control": "no-store" } },
       );
-    const bytes = await listeningAudio(text, settings);
+    const bytes = await listeningAudio(text, settings, req.nextUrl.origin);
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "audio/mpeg",
