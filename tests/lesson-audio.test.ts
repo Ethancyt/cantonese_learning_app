@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -87,6 +88,29 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     calls[0].headers.get("Ocp-Apim-Subscription-Key"),
     "private-voice-key",
   );
+  await synthesize("你好！好高興識你！", azure);
+  assert.match(
+    calls[1].body,
+    /你好！<phoneme alphabet="sapi" ph="hou 2 gou 1 hing 3 sik 1 nei 5">好高興識你<\/phoneme>！/,
+  );
+  const previousAzureClip = (text: string) =>
+    createHash("sha256")
+      .update(
+        JSON.stringify([
+          "cantonese-audio-v1",
+          text,
+          "azure",
+          azure.azureRegion,
+          azure.azureVoice,
+          "ssml-rate-minus-15",
+        ]),
+      )
+      .digest("hex");
+  assert.notEqual(
+    clipIdentity("好高興識你", azure),
+    previousAzureClip("好高興識你"),
+  );
+  assert.equal(clipIdentity("你好", azure), previousAzureClip("你好"));
   await saveSettings({
     ttsProvider: "compatible",
     ttsKey: "private-compatible-key",
