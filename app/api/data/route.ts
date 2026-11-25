@@ -11,7 +11,7 @@ import {
 import { isCorrect, normalize } from "@/lib/schema";
 import { progress, mastery } from "@/lib/progress";
 import { publicLesson } from "@/lib/presentation";
-import { isRetiredDemoSource } from "@/lib/content/retired-content";
+import { isArchivedSource } from "@/lib/content/retired-content";
 export const runtime = "nodejs";
 function visible(l: { availability: string; availableAt?: string }) {
   return (
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
     const db = await readData(user.client, user.id);
     const attempts = db.attempts.filter((a) => a.studentId === user.id),
       completions = db.completions.filter((c) => c.studentId === user.id);
-    const retiredSources = new Set(
-      db.sources.filter(isRetiredDemoSource).map((source) => source.id),
+    const archivedSources = new Set(
+      db.sources.filter(isArchivedSource).map((source) => source.id),
     );
     const latest = new Map<string, (typeof db.lessons)[number]>();
     for (const l of db.versions.filter(
@@ -60,8 +60,9 @@ export async function GET(req: NextRequest) {
           ? []
           : db.lessons.filter(
               (l) =>
+                l.status !== "archived" &&
                 (!l.sourceMaterialId ||
-                  !retiredSources.has(l.sourceMaterialId)) &&
+                  !archivedSources.has(l.sourceMaterialId)) &&
                 (user.role === "admin" || l.createdBy === user.id),
             ),
       history:
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
           ? []
           : db.sources.filter(
               (s) =>
-                !retiredSources.has(s.id) &&
+                !archivedSources.has(s.id) &&
                 (user.role === "admin" || s.createdBy === user.id),
             ),
       attempts,

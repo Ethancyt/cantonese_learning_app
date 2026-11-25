@@ -305,6 +305,7 @@ export type Source = {
   chunks: { index: number; page?: number; text: string }[];
   createdBy: string;
   createdAt: string;
+  archivedAt?: string;
 };
 export const analysisSchema = z.object({
   learningObjectives: z.array(z.string()).min(1),

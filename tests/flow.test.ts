@@ -203,5 +203,18 @@ test(
     assert.equal(reply.status, 200);
     assert.match(reply.data.mode, /Demo/);
     assert.equal(final.data.drafts.length, 0);
+
+    await call("/api/data", { action: "role", role: "volunteer" });
+    assert.equal(
+      (await call("/api/studio", { action: "archive", lessonId: lesson.id }))
+        .status,
+      200,
+    );
+    const archived = (await call("/api/data")).data;
+    assert.ok(
+      !archived.lessons.some((l: { id: string }) => l.id === lesson.id),
+    );
+    assert.ok(!archived.drafts.some((l: { id: string }) => l.id === lesson.id));
+    assert.ok(archived.history.some((l: { id: string }) => l.id === lesson.id));
   },
 );

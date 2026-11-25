@@ -19,6 +19,7 @@ import {
 import { retainedAudio } from "@/lib/lesson-audio";
 import { generateLessonAudio } from "@/lib/server/lesson-audio";
 import { withLessonLock } from "@/lib/server/lesson-lock";
+import { isArchivedSource } from "@/lib/content/retired-content";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 export async function POST(req: NextRequest) {
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       const source = db.sources.find(
         (s) =>
           s.id === b.sourceId &&
+          !isArchivedSource(s) &&
           (s.createdBy === user.id || user.role === "admin"),
       );
       if (!source) throw new Error("Source not found.");
@@ -87,15 +89,21 @@ export async function POST(req: NextRequest) {
       const source = db.sources.find(
         (s) =>
           s.id === b.sourceId &&
+          !isArchivedSource(s) &&
           (s.createdBy === user.id || user.role === "admin"),
       );
       if (!source) throw new Error("Source not found.");
       const analysis = grounded(analysisSchema.parse(b.analysis), source);
+      const archivedLessons = new Set(
+        db.lessons.filter((l) => l.status === "archived").map((l) => l.id),
+      );
       const result = await generate(
         source,
         analysis,
         settings,
-        db.versions.filter((l) => l.status === "published"),
+        db.versions.filter(
+          (l) => l.status === "published" && !archivedLessons.has(l.id),
+        ),
       );
       result.lesson.audio = [];
       await saveLesson(user.client, result.lesson);

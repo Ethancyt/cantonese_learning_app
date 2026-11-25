@@ -18,3 +18,7 @@ export function isRetiredDemoSource(source: Source) {
     source.text.startsWith(retiredDemoOpening)
   );
 }
+
+export function isArchivedSource(source: Source) {
+  return Boolean(source.archivedAt) || isRetiredDemoSource(source);
+}
