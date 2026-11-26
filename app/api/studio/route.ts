@@ -20,16 +20,22 @@ import { retainedAudio } from "@/lib/lesson-audio";
 import { generateLessonAudio } from "@/lib/server/lesson-audio";
 import { withLessonLock } from "@/lib/server/lesson-lock";
 import { isArchivedSource } from "@/lib/content/retired-content";
+import {
+  studioUploadLimitBytes,
+  studioUploadSizeError,
+} from "@/lib/studio-upload";
 export const runtime = "nodejs";
 export const maxDuration = 90;
+// Allow multipart headers and the form fields in addition to the file.
+const multipartLimit = studioUploadLimitBytes + 1024 * 1024;
 export async function POST(req: NextRequest) {
   try {
     const user = await identity(req);
     requireVolunteer(user);
     if (req.headers.get("content-type")?.includes("multipart/form-data")) {
       guard(req, user.id, 15);
-      if (Number(req.headers.get("content-length") || 0) > 6 * 1024 * 1024)
-        throw new Error("File is too large.");
+      if (Number(req.headers.get("content-length") || 0) > multipartLimit)
+        throw new Error(studioUploadSizeError);
       const form = await req.formData();
       const file = form.get("file");
       const source =

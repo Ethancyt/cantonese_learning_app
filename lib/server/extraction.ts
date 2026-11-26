@@ -1,20 +1,26 @@
 import mammoth from "mammoth";
 import JSZip from "jszip";
 import { Source } from "../schema";
-const max = 5 * 1024 * 1024;
+import {
+  studioUploadLimitBytes,
+  studioUploadSizeError,
+} from "../studio-upload";
 export async function extract(file: File, userId: string): Promise<Source> {
-  if (file.size > max) throw new Error("Files must be under 5 MB.");
+  if (file.size > studioUploadLimitBytes)
+    throw new Error(studioUploadSizeError);
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (!["txt", "md", "pdf", "docx", "pptx"].includes(ext || ""))
     throw new Error("Use PDF, PPTX, DOCX, TXT, or Markdown.");
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
   let text = "",
     pages: { text: string; page?: number }[] = [];
   if (ext === "pdf") {
     if (buffer.subarray(0, 5).toString() !== "%PDF-")
       throw new Error("Invalid PDF file.");
     const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
+    // PDFParse copies Buffers. Pass a view so large PDFs reuse the upload bytes.
+    const parser = new PDFParse({ data: new Uint8Array(bytes) });
     try {
       const result = await parser.getText({ first: 100 });
       if (result.total > 100)

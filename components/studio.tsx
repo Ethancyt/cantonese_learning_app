@@ -22,6 +22,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { lessonAudioTexts } from "@/lib/lesson-audio";
+import {
+  studioUploadLimitBytes,
+  studioUploadLimitMB,
+  studioUploadSizeError,
+} from "@/lib/studio-upload";
 import { ListenButton } from "./dashboard";
 import { useApp, DataBoundary } from "./app-provider";
 import {
@@ -112,6 +117,10 @@ export function Studio() {
     setPreviewFeedback("");
   }
   async function upload() {
+    if (file && file.size > studioUploadLimitBytes) {
+      setError(studioUploadSizeError);
+      return;
+    }
     const form = new FormData();
     if (file) form.set("file", file);
     else {
@@ -522,7 +531,10 @@ export function Studio() {
             >
               <Upload size={32} />
               <h3>{file ? file.name : "Drop your workshop material here"}</h3>
-              <p>PDF, PPTX, DOCX, TXT, or Markdown · Up to 5 MB</p>
+              <p>
+                PDF, PPTX, DOCX, TXT, or Markdown · Up to {studioUploadLimitMB}{" "}
+                MB
+              </p>
               <label
                 className="btn secondary"
                 tabIndex={0}

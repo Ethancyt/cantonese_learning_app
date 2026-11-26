@@ -89,10 +89,14 @@ test("unsupported and oversized documents are rejected, PPTX preserves slide pro
     () => extract(new File(["x"], "payload.exe"), "user"),
     /Use PDF/,
   );
+  const megabyte = new Blob([new Uint8Array(1024 * 1024)]);
   await assert.rejects(
     () =>
-      extract(new File([new Uint8Array(6 * 1024 * 1024)], "large.txt"), "user"),
-    /under 5 MB/,
+      extract(
+        new File([...Array<Blob>(50).fill(megabyte), "x"], "large.txt"),
+        "user",
+      ),
+    /50 MB or smaller/,
   );
   const zip = new JSZip();
   zip.file(
@@ -160,7 +164,7 @@ test("DOCX and text/Markdown extraction preserve original text", async () => {
   );
   assert.match(result.text, /你好 \| nei5 hou2 \| Hello/);
 });
-test("text PDF extraction works and malformed PDF fails", async () => {
+test("text is extracted from a 41 MB PDF and malformed PDFs are rejected", async () => {
   let pdf = "%PDF-1.4\n";
   const content = "BT /F1 12 Tf 72 700 Td (Original workshop notes) Tj ET";
   const objects = [
@@ -175,12 +179,15 @@ test("text PDF extraction works and malformed PDF fails", async () => {
     offsets.push(pdf.length);
     pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`;
   }
-  const start = pdf.length;
-  pdf += "xref\n0 6\n0000000000 65535 f \n";
+  // Pad with a valid PDF comment to simulate the bytes of a large slide deck.
+  const spaces = new Blob([new Uint8Array(1024 * 1024).fill(32)]);
+  const comment = new Blob(["%", ...Array<Blob>(41).fill(spaces), "\n"]);
+  const start = pdf.length + comment.size;
+  let xref = "xref\n0 6\n0000000000 65535 f \n";
   for (const offset of offsets.slice(1))
-    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;
-  const s = await extract(new File([pdf], "notes.pdf"), "user");
+    xref += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  xref += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;
+  const s = await extract(new File([pdf, comment, xref], "notes.pdf"), "user");
   assert.match(s.text, /Original workshop notes/);
   await assert.rejects(
     () => extract(new File(["fake"], "bad.pdf"), "user"),
