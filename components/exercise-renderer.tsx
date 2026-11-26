@@ -70,6 +70,7 @@ export function ExerciseRenderer({
   disabled?: boolean;
   preview?: boolean;
 }) {
+  const visitor = useApp().data?.role === "visitor";
   const [selected, setSelected] = useState(""),
     [tokens, setTokens] = useState<number[]>([]),
     [pairLeft, setPairLeft] = useState(""),
@@ -111,6 +112,12 @@ export function ExerciseRenderer({
       {!e.personalPractice && ["listen_choose", "speak"].includes(e.type) && (
         <ListenButton lesson={lesson} text={exerciseAudioText(e)} />
       )}
+      {visitor && e.type === "listen_choose" && (
+        <details className="help-text">
+          <summary>Show the written phrase</summary>
+          <p lang="zh-HK">{exerciseAudioText(e)}</p>
+        </details>
+      )}
       {e.type === "speak" && !e.personalPractice && e.answer !== e.prompt && (
         <p className="help-text">
           Say: <strong>{e.answer}</strong>
@@ -149,23 +156,25 @@ export function ExerciseRenderer({
           </button>
           <div className="speech-controls">
             <ListenButton lesson={lesson} text={vocabulary[card].traditional} />
-            <button
-              className="btn secondary"
-              onClick={() => {
-                const ids = JSON.parse(
-                  localStorage.getItem("saved-words") || "[]",
-                );
-                const id = vocabulary[card].traditional;
-                localStorage.setItem(
-                  "saved-words",
-                  JSON.stringify([...new Set([...ids, id])]),
-                );
-                setSaved(true);
-              }}
-            >
-              <Bookmark size={14} />
-              {saved ? "Saved to wordbook" : "Save word"}
-            </button>
+            {!visitor && (
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  const ids = JSON.parse(
+                    localStorage.getItem("saved-words") || "[]",
+                  );
+                  const id = vocabulary[card].traditional;
+                  localStorage.setItem(
+                    "saved-words",
+                    JSON.stringify([...new Set([...ids, id])]),
+                  );
+                  setSaved(true);
+                }}
+              >
+                <Bookmark size={14} />
+                {saved ? "Saved to wordbook" : "Save word"}
+              </button>
+            )}
           </div>
           <div className="flash-nav">
             <button
@@ -493,7 +502,8 @@ function Speaking({
   targetText?: string;
   disabled?: boolean;
 }) {
-  const { request } = useApp();
+  const { data, request } = useApp();
+  const visitor = data?.role === "visitor";
   const [recording, setRecording] = useState(false),
     [url, setUrl] = useState(""),
     [blob, setBlob] = useState<Blob | null>(null),
@@ -552,7 +562,9 @@ function Speaking({
         setBlob(audio);
         setRecording(false);
         setNote(
-          "Recording stays on this device unless you choose “Check pronunciation”.",
+          visitor
+            ? "Your recording stays in this tab."
+            : "Recording stays on this device unless you choose “Check pronunciation”.",
         );
         onReady();
       };
@@ -678,7 +690,7 @@ function Speaking({
       )}
       {url && <audio controls src={url} />}
       <div className="speech-controls">
-        {blob && !preview && (
+        {blob && !preview && !visitor && (
           <button
             disabled={busy || recording || disabled}
             className="btn secondary"
@@ -702,9 +714,9 @@ function Speaking({
         </button>
       </div>
       <p className="help-text" style={{ marginTop: 18 }}>
-        Record the target phrase, then check pronunciation. Azure can assess
-        accuracy, fluency, completeness, and individual words. You can also
-        practise aloud without an automatic score.
+        {visitor
+          ? "Listen back to your recording or practise aloud. Sign in for pronunciation feedback."
+          : "Record the target phrase, then check pronunciation. Azure can assess accuracy, fluency, completeness, and individual words. You can also practise aloud without an automatic score."}
       </p>
     </div>
   );

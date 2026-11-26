@@ -8,7 +8,7 @@ import {
   saveCompletion,
   report,
 } from "@/lib/server/repository";
-import { isCorrect, normalize } from "@/lib/schema";
+import { gradePractice } from "@/lib/practice-attempt";
 import { progress, mastery } from "@/lib/progress";
 import { publicLesson } from "@/lib/presentation";
 import { isArchivedSource } from "@/lib/content/retired-content";
@@ -200,11 +200,6 @@ export async function POST(req: NextRequest) {
     }
     const e = lesson.exercises.find((x) => x.id === b.exerciseId);
     if (!e) throw new Error("Unknown activity.");
-    const answer = e.personalPractice ? "practised" : b.answer || "";
-    let correct = isCorrect(e, answer);
-    if (e.type === "match")
-      correct = normalize(answer) === normalize(JSON.stringify(e.pairs));
-    if (["flashcard", "speak", "ai_roleplay"].includes(e.type)) correct = false;
     const previous = db.attempts.filter(
       (a) =>
         a.studentId === user.id &&
@@ -218,11 +213,7 @@ export async function POST(req: NextRequest) {
       lessonId: lesson.id,
       version: lesson.version,
       exerciseId: e.id,
-      answer,
-      correct,
-      tags: ["flashcard", "speak", "ai_roleplay"].includes(e.type)
-        ? []
-        : e.tags,
+      ...gradePractice(e, b.answer ?? ""),
       timestamp: new Date().toISOString(),
       attemptCount: previous.length + 1,
     });

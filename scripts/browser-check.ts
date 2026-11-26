@@ -2,6 +2,79 @@ import { chromium, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { studioMaterial } from "../tests/helpers/studio-material";
+import { workshopOne } from "../lib/content/workshop-one";
+
+async function checkVisitor(
+  browser: Awaited<ReturnType<typeof chromium.launch>>,
+  base: string,
+) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const progressWrites: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().startsWith(base + "/api/")
+      )
+        progressWrites.push(request.url());
+    });
+    await page.goto(base);
+    await expect(page.getByText(/practising as a visitor/)).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Volunteer Studio" }),
+    ).toHaveCount(0);
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await page.getByRole("link", { name: "Back to lessons" }).click();
+
+    const first = workshopOne.module!.sections[0];
+    await page.locator(`a[href="/journey/${workshopOne.id}"]`).first().click();
+    await page.getByRole("button", { name: "Begin my journey" }).click();
+    await page.getByRole("button", { name: "Continue to practice" }).click();
+    await expect(page.getByRole("button", { name: "Save word" })).toHaveCount(
+      0,
+    );
+    for (let i = 1; i < first.vocabularyIds.length; i++)
+      await page.getByRole("button", { name: "Next word" }).click();
+    await page.locator(".exercise-actions .btn").last().click();
+    await expect(page.locator(".feedback")).toBeVisible();
+    await page.getByRole("button", { name: "Back to journey map" }).click();
+    await expect(
+      page.getByRole("button", { name: "Continue practice" }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Back to my journeys" }).click();
+    await page.locator(`a[href="/journey/${workshopOne.id}"]`).first().click();
+    await expect(
+      page.getByRole("button", { name: "Continue practice" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "Begin my journey" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => localStorage.getItem("saved-words")),
+    ).toBeNull();
+    expect(progressWrites).toEqual([]);
+
+    await page.goto(base + "/studio");
+    await expect(
+      page.getByRole("heading", { name: "Volunteer access required" }),
+    ).toBeVisible();
+    const blocked = await context.request.post(base + "/api/studio", {
+      data: { action: "generate" },
+    });
+    expect(blocked.status()).toBe(401);
+    const attempt = await context.request.post(base + "/api/data", {
+      data: { action: "attempt" },
+    });
+    expect(attempt.status()).toBe(401);
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   const artifacts = process.env.BROWSER_ARTIFACT_DIR || "artifacts";
   await mkdir(artifacts, { recursive: true });
@@ -434,6 +507,12 @@ async function main() {
   console.log(
     "Browser checks passed: Workshop 1, personal practice, references, Studio publication, review and mobile navigation.",
   );
+  if (process.env.TEST_VISITOR_BASE_URL) {
+    await checkVisitor(browser, process.env.TEST_VISITOR_BASE_URL);
+    console.log(
+      "Visitor browser checks passed: default access, temporary progress, sign-in and Studio restrictions.",
+    );
+  }
   await browser.close();
 }
 main().catch((e) => {

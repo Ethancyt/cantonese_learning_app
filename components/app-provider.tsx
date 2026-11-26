@@ -7,11 +7,15 @@ import {
   ReactNode,
   useCallback,
   useMemo,
+  useRef,
+  Fragment,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Lesson, Attempt, Completion, Source } from "@/lib/schema";
-import { mastery } from "@/lib/progress";
+import { mastery, progress } from "@/lib/progress";
+import type { VisitorPractice } from "@/lib/visitor-practice";
 type Data = {
   lessons: Lesson[];
   drafts: Lesson[];
@@ -57,9 +61,46 @@ const Context = createContext<{
   developerAvailable: false,
   reloadConfiguration: async () => {},
 });
+
+async function serverRequest(path: string, body?: unknown, token?: string) {
+  const isForm = body instanceof FormData;
+  const response = await fetch(path, {
+    method: body ? "POST" : "GET",
+    cache: "no-store",
+    headers: {
+      ...(body && !isForm ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || "Request failed.");
+  return json;
+}
+
+function visitorData(session: VisitorPractice): Data {
+  const { attempts, completions, lessons } = session;
+  return {
+    lessons,
+    attempts,
+    completions,
+    stats: progress(attempts, completions),
+    mastery: mastery(attempts),
+    drafts: [],
+    history: [],
+    sources: [],
+    role: "visitor",
+    mode: "supabase",
+    analytics: null,
+  };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<RuntimeConfig | null>(null),
-    [revision, setRevision] = useState(0);
+    [revision, setRevision] = useState(0),
+    [visitorEpoch, setVisitorEpoch] = useState(0);
+  const visitor = useRef<VisitorPractice | null>(null);
+  const refreshId = useRef(0);
   const authClient = useMemo(
     () =>
       config?.supabase
@@ -68,6 +109,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [config?.supabase?.url, config?.supabase?.key],
   );
   const reloadConfiguration = useCallback(async () => {
+    refreshId.current++;
+    visitor.current = null;
     setLoading(true);
     setData(null);
     try {
@@ -86,47 +129,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [loading, setLoading] = useState(true);
   const request = useCallback(
     async (path: string, body?: unknown) => {
+      if (data?.role === "visitor") {
+        if (path !== "/api/data" || !visitor.current)
+          throw new Error("Sign in to use this feature.");
+        if (!body) return visitorData(visitor.current);
+        const result = visitor.current.submit(body);
+        setData(visitorData(visitor.current));
+        return result;
+      }
       const session = authClient
         ? (await authClient.auth.getSession()).data.session
         : null;
-      const isForm = body instanceof FormData;
-      const r = await fetch(path, {
-        method: body ? "POST" : "GET",
-        headers: {
-          ...(body && !isForm ? { "Content-Type": "application/json" } : {}),
-          ...(session
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}),
-        },
-        body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || "Request failed.");
-      return json;
+      return serverRequest(path, body, session?.access_token);
     },
-    [authClient],
+    [authClient, data?.role],
   );
   const refresh = useCallback(async () => {
+    const id = ++refreshId.current;
     try {
-      setData(await request("/api/data"));
+      const session = authClient
+        ? (await authClient.auth.getSession()).data.session
+        : null;
+      if (id !== refreshId.current) return;
+      if (authClient && !session) {
+        if (!visitor.current) {
+          const [{ VisitorPractice }, { workshopOne }, { publicLesson }] =
+            await Promise.all([
+              import("@/lib/visitor-practice"),
+              import("@/lib/content/workshop-one"),
+              import("@/lib/presentation"),
+            ]);
+          if (id !== refreshId.current) return;
+          visitor.current = new VisitorPractice([publicLesson(workshopOne)]);
+        }
+        setData(visitorData(visitor.current));
+      } else {
+        visitor.current = null;
+        const result = await serverRequest(
+          "/api/data",
+          undefined,
+          session?.access_token,
+        );
+        if (id !== refreshId.current) return;
+        setData(result);
+      }
       setError("");
     } catch (e) {
+      if (id !== refreshId.current) return;
+      setData(null);
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (id === refreshId.current) setLoading(false);
     }
-  }, [request]);
+  }, [authClient]);
   useEffect(() => {
     reloadConfiguration();
   }, [reloadConfiguration]);
   useEffect(() => {
     if (!config) return;
     refresh();
-    const sub = authClient?.auth.onAuthStateChange(() => {
-      setTimeout(refresh, 0);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const sub = authClient?.auth.onAuthStateChange((event) => {
+      if (event === "INITIAL_SESSION") return;
+      clearTimeout(timer);
+      timer = setTimeout(refresh, 0);
     });
-    return () => sub?.data.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      sub?.data.subscription.unsubscribe();
+    };
   }, [refresh, revision, !!config]);
+  useEffect(() => {
+    if (!authClient) return;
+    const discard = () => {
+      if (visitor.current) {
+        visitor.current = null;
+        refreshId.current++;
+      }
+    };
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setData((current) => (current?.role === "visitor" ? null : current));
+      setVisitorEpoch((epoch) => epoch + 1);
+      void refresh();
+    };
+    window.addEventListener("pagehide", discard);
+    window.addEventListener("pageshow", restore);
+    return () => {
+      window.removeEventListener("pagehide", discard);
+      window.removeEventListener("pageshow", restore);
+    };
+  }, [authClient, refresh]);
   const switchRole = async (role: string) => {
     await request("/api/data", { action: "role", role });
     await refresh();
@@ -145,16 +238,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reloadConfiguration,
       }}
     >
-      {children}
+      <Fragment
+        key={data?.role === "visitor" ? `visitor-${visitorEpoch}` : "account"}
+      >
+        {children}
+      </Fragment>
     </Context.Provider>
   );
 }
 export const useApp = () => useContext(Context);
+export function SignIn() {
+  const { loading, auth, refresh } = useApp();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  return (
+    <div className="panel empty">
+      <h1>Sign in</h1>
+      <p>Sign in to keep your practice progress across visits.</p>
+      {auth ? (
+        <form
+          className="auth-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const fields = new FormData(event.currentTarget);
+            setBusy(true);
+            setNote("");
+            try {
+              const { error } = await auth.auth.signInWithPassword({
+                email: String(fields.get("email")),
+                password: String(fields.get("password")),
+              });
+              if (error) throw error;
+              await refresh();
+              router.replace("/");
+            } catch (error) {
+              setNote((error as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <label>
+            Email
+            <input required type="email" name="email" autoComplete="username" />
+          </label>
+          <label>
+            Password
+            <input
+              required
+              type="password"
+              name="password"
+              autoComplete="current-password"
+            />
+          </label>
+          <button className="btn" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+          {note && <p role="alert">{note}</p>}
+        </form>
+      ) : (
+        <p>{loading ? "Loading sign-in…" : "Sign-in is unavailable."}</p>
+      )}
+      <Link className="btn secondary" href="/">
+        Back to lessons
+      </Link>
+    </div>
+  );
+}
+
 export function DataBoundary({ children }: { children: ReactNode }) {
-  const { data, error, loading, refresh, auth } = useApp();
-  const [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [note, setNote] = useState("");
+  const {
+    data,
+    error,
+    loading,
+    reloadConfiguration,
+    auth,
+    developerAvailable,
+  } = useApp();
   if (loading)
     return (
       <div className="empty">
@@ -168,44 +329,16 @@ export function DataBoundary({ children }: { children: ReactNode }) {
         <h2>Let’s get connected</h2>
         <p role="alert">{error}</p>
         {auth && (
-          <form
-            className="auth-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const result = await auth.auth.signInWithPassword({
-                email,
-                password,
-              });
-              setNote(result.error?.message || "Signed in.");
-              if (!result.error) refresh();
-            }}
-          >
-            <label>
-              Email
-              <input
-                required
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                required
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-            <button className="btn">Sign in</button>
-            <p>{note}</p>
-          </form>
+          <Link className="btn" href="/sign-in">
+            Sign in
+          </Link>
         )}
-        <Link className="btn secondary" href="/developer">
-          Developer setup
-        </Link>
-        <button className="btn secondary" onClick={refresh}>
+        {developerAvailable && (
+          <Link className="btn secondary" href="/developer">
+            Developer setup
+          </Link>
+        )}
+        <button className="btn secondary" onClick={reloadConfiguration}>
           Try again
         </button>
       </div>

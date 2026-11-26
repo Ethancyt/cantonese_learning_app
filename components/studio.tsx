@@ -236,6 +236,16 @@ export function Studio() {
         <div />
       </DataBoundary>
     );
+  if (data.role === "visitor")
+    return (
+      <div className="panel empty">
+        <h2>Volunteer access required</h2>
+        <p>Sign in with a volunteer or admin account to use the Studio.</p>
+        <Link className="btn" href="/sign-in">
+          Sign in
+        </Link>
+      </div>
+    );
   if (data.role === "student")
     return (
       <div className="panel empty">

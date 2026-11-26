@@ -75,7 +75,9 @@ export function JourneyPlayer({
       setFeedback({
         correct: true,
         explanation:
-          "All activities practised. Finish the lesson to save your completion.",
+          data.role === "visitor"
+            ? "All activities practised. Finish the lesson to complete this visit’s practice."
+            : "All activities practised. Finish the lesson to save your completion.",
       });
     }
   }, [resume, lesson, data]);
@@ -311,28 +313,30 @@ export function JourneyPlayer({
             </button>
           )}
         </div>
-        <button
-          className="report-button"
-          disabled={reported}
-          onClick={async () => {
-            try {
-              await request("/api/data", {
-                action: "report",
-                lessonId: lesson.id,
-                version: lesson.version,
-                reason: `Please review activity ${e.id}.`,
-              });
-              setReported(true);
-            } catch (e) {
-              setError((e as Error).message);
-            }
-          }}
-        >
-          <Flag size={10} />{" "}
-          {reported
-            ? "Report sent for volunteer review"
-            : "Report this activity"}
-        </button>
+        {data.role !== "visitor" && (
+          <button
+            className="report-button"
+            disabled={reported}
+            onClick={async () => {
+              try {
+                await request("/api/data", {
+                  action: "report",
+                  lessonId: lesson.id,
+                  version: lesson.version,
+                  reason: `Please review activity ${e.id}.`,
+                });
+                setReported(true);
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            <Flag size={10} />{" "}
+            {reported
+              ? "Report sent for volunteer review"
+              : "Report this activity"}
+          </button>
+        )}
       </div>
     );
   }

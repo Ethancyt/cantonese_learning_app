@@ -42,11 +42,15 @@ jobs:
         env:
           APP_MODE: demo
           TEST_BASE_URL: http://localhost:3003
+          TEST_VISITOR_BASE_URL: http://localhost:3004
         run: |
           npx playwright install --with-deps chromium
           DEMO_DATA_DIR="$RUNNER_TEMP/browser-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/browser-developer" \
             node node_modules/next/dist/bin/next start --port 3003 > "$RUNNER_TEMP/workshop-browser.log" 2>&1 &
+          APP_MODE=supabase NEXT_PUBLIC_SUPABASE_URL=https://visitor-test.invalid NEXT_PUBLIC_SUPABASE_ANON_KEY=visitor-test-key \
+            node node_modules/next/dist/bin/next start --port 3004 > "$RUNNER_TEMP/workshop-visitor.log" 2>&1 &
           curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$TEST_BASE_URL/api/config" > /dev/null
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$TEST_VISITOR_BASE_URL/api/config" > /dev/null
           npm run test:browser
 
   verify-cloudflare:

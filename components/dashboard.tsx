@@ -53,7 +53,11 @@ export function Dashboard() {
       <div className="page-heading">
         <div>
           <h1>My lessons</h1>
-          <p>Continue your practice or choose a lesson below.</p>
+          <p>
+            {data.role === "visitor"
+              ? "You’re practising as a visitor. Progress resets when you leave the site or reload."
+              : "Continue your practice or choose a lesson below."}
+          </p>
         </div>
       </div>
       <section className="continue-lesson panel" aria-label="Continue lesson">
@@ -299,9 +303,12 @@ export function Dashboard() {
               <br />
               Every journey carries a little piece of Hong Kong.
             </p>
-            <Link href="/studio" className="text-link">
-              Visit the Volunteer Studio <ArrowRight size={15} />
-            </Link>
+            {(data.mode === "demo" ||
+              ["volunteer", "admin"].includes(data.role)) && (
+              <Link href="/studio" className="text-link">
+                Visit the Volunteer Studio <ArrowRight size={15} />
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -344,7 +351,7 @@ export function ListenButton({
         disabled={busy}
         title={clip ? "Play saved lesson audio" : "Play Cantonese voice"}
         onClick={async () => {
-          if (source) {
+          if (source && data?.role !== "visitor") {
             setBusy(true);
             setNote("");
             try {
