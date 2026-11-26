@@ -157,4 +157,30 @@ test("Workers reuse cached listening clips and synthesize when the cache is unav
   };
   assert.deepEqual(await listeningAudio("早晨", settings, origin), bytes);
   assert.equal(calls, 2);
+
+  const shared = new Map<string, ArrayBuffer>();
+  const binding = {
+    async get(key: string) {
+      return shared.get(key) ?? null;
+    },
+    async put(key: string, audio: ArrayBuffer) {
+      shared.set(key, audio);
+    },
+  };
+  assert.deepEqual(
+    await listeningAudio("早晨", settings, origin, binding),
+    bytes,
+  );
+  assert.equal(shared.size, 1);
+  assert.equal(calls, 3);
+  assert.deepEqual(
+    await listeningAudio(
+      "早晨",
+      settings,
+      "https://learncantonese.app",
+      binding,
+    ),
+    bytes,
+  );
+  assert.equal(calls, 3, "the shared clip survives an edge-cache miss");
 });

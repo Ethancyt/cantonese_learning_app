@@ -152,6 +152,21 @@ test(
       const replay = await call("/api/audio", voiceRequest);
       assert.equal(replay.status, 200);
       assert.equal(replay.body.audioBytes, voice.body.audioBytes);
+      const publicClip = await fetch(
+        base +
+          `/api/workshop-audio?${new URLSearchParams({ text: word.traditional })}`,
+      );
+      assert.equal(publicClip.status, 200);
+      assert.equal(publicClip.headers.get("Content-Type"), "audio/mpeg");
+      assert.equal(
+        (await publicClip.arrayBuffer()).byteLength,
+        voice.body.audioBytes,
+      );
+      const unknownClip = await fetch(
+        base +
+          `/api/workshop-audio?${new URLSearchParams({ text: "未授權的新句子" })}`,
+      );
+      assert.equal(unknownClip.status, 404);
       assert.equal(
         (await call("/api/audio", { ...voiceRequest, text: "未授權的新句子" }))
           .status,

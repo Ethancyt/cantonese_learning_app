@@ -324,10 +324,15 @@ export function ListenButton({
   lesson?: Lesson;
 }) {
   const { data, auth } = useApp();
+  const visitor = data?.role === "visitor";
+  const phrase = text.trim();
   const source =
     lesson ||
-    data?.lessons.find((l) => l.audio?.some((c) => c.text === text.trim()));
-  const clip = source?.audio?.find((c) => c.text === text.trim());
+    data?.lessons.find((l) => l.audio?.some((c) => c.text === phrase)) ||
+    data?.lessons.find((l) =>
+      l.vocabulary.some((word) => word.traditional === phrase),
+    );
+  const clip = source?.audio?.find((c) => c.text === phrase);
   const [note, setNote] = useState(""),
     [busy, setBusy] = useState(false);
   const saved = useRef<{ audio: HTMLAudioElement; url: string } | null>(null);
@@ -342,7 +347,7 @@ export function ListenButton({
         saved.current = null;
       }
     };
-  }, [source?.id, source?.version, clip?.id, text]);
+  }, [source?.id, source?.version, clip?.id, text, visitor]);
   return (
     <div className="listen-wrap">
       <button
@@ -351,15 +356,16 @@ export function ListenButton({
         disabled={busy}
         title={clip ? "Play saved lesson audio" : "Play Cantonese voice"}
         onClick={async () => {
-          if (source && data?.role !== "visitor") {
+          if (source) {
             setBusy(true);
             setNote("");
             try {
               if (!saved.current) {
                 abort.current = new AbortController();
-                const session = auth
-                  ? (await auth.auth.getSession()).data.session
-                  : null;
+                const session =
+                  !visitor && auth
+                    ? (await auth.auth.getSession()).data.session
+                    : null;
                 const query = clip
                   ? new URLSearchParams({
                       lessonId: source.id,
@@ -367,30 +373,34 @@ export function ListenButton({
                       clipId: clip.id,
                     })
                   : null;
-                const response = await fetch(
-                  query ? `/api/audio?${query}` : "/api/audio",
-                  {
-                    method: clip ? "GET" : "POST",
-                    headers: session
-                      ? {
-                          Authorization: `Bearer ${session.access_token}`,
-                          ...(!clip
-                            ? { "Content-Type": "application/json" }
-                            : {}),
-                        }
-                      : !clip
-                        ? { "Content-Type": "application/json" }
-                        : {},
-                    body: clip
-                      ? undefined
-                      : JSON.stringify({
-                          lessonId: source.id,
-                          version: source.version,
-                          text,
-                        }),
-                    signal: abort.current.signal,
-                  },
-                );
+                const response = visitor
+                  ? await fetch(
+                      `/api/workshop-audio?${new URLSearchParams({ text: phrase })}`,
+                      {
+                        signal: abort.current.signal,
+                      },
+                    )
+                  : await fetch(query ? `/api/audio?${query}` : "/api/audio", {
+                      method: clip ? "GET" : "POST",
+                      headers: session
+                        ? {
+                            Authorization: `Bearer ${session.access_token}`,
+                            ...(!clip
+                              ? { "Content-Type": "application/json" }
+                              : {}),
+                          }
+                        : !clip
+                          ? { "Content-Type": "application/json" }
+                          : {},
+                      body: clip
+                        ? undefined
+                        : JSON.stringify({
+                            lessonId: source.id,
+                            version: source.version,
+                            text,
+                          }),
+                      signal: abort.current.signal,
+                    });
                 if (!response.ok) {
                   const error = await response.json().catch(() => ({}));
                   throw new Error(
