@@ -79,9 +79,9 @@ export async function startSpeechRecording(signal: AbortSignal) {
     () => false,
   );
   let stream: MediaStream | undefined;
-  const release = () => {
+  const release = async () => {
     stream?.getTracks().forEach((track) => track.stop());
-    if (context.state !== "closed") void context.close().catch(() => {});
+    if (context.state !== "closed") await context.close().catch(() => {});
   };
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -120,7 +120,7 @@ export async function startSpeechRecording(signal: AbortSignal) {
     function abort() {
       finish();
     }
-    function finish(error?: Error) {
+    async function finish(error?: Error) {
       if (finished) return;
       finished = true;
       clearTimeout(limitTimer);
@@ -130,7 +130,7 @@ export async function startSpeechRecording(signal: AbortSignal) {
       recorder.disconnect();
       muted.disconnect();
       if (worklet) worklet.port.close();
-      release();
+      await release();
       if (signal.aborted) resolveClip(null);
       else if (error) rejectClip(error);
       else
@@ -173,7 +173,7 @@ export async function startSpeechRecording(signal: AbortSignal) {
     signal.addEventListener("abort", abort, { once: true });
     return { clip, stop };
   } catch (error) {
-    release();
+    await release();
     if (error instanceof DOMException && error.name === "NotAllowedError")
       throw new Error(
         "Microphone access was denied. Allow it in your browser and try again.",

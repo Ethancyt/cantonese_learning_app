@@ -542,7 +542,6 @@ function Speaking({
     try {
       const session = await startSpeechRecording(controller.signal);
       if (controller.signal.aborted) return;
-      setRecorded(null);
       stopCapture.current = session.stop;
       setCaptureState("recording");
       setNote("Recording… stops automatically after 25 seconds.");
@@ -550,7 +549,7 @@ function Speaking({
       if (!wav || controller.signal.aborted) return;
       setRecorded({ wav, url: URL.createObjectURL(wav) });
       setNote(
-        "Recording ready. You can replay it or choose “Check pronunciation”.",
+        "Recording ready. You can replay it, check pronunciation, or record again.",
       );
       onReady();
     } catch (e) {
@@ -597,12 +596,22 @@ function Speaking({
     <div className="speaking">
       <button
         className={`record-button ${recording ? "recording" : ""}`}
-        aria-label={recording ? "Stop recording" : "Start recording"}
+        aria-label={
+          recording
+            ? "Stop recording"
+            : recorded
+              ? "Record again"
+              : "Start recording"
+        }
+        title={
+          recording
+            ? "Stop recording"
+            : recorded
+              ? "Record again"
+              : "Start recording"
+        }
         disabled={
-          busy ||
-          captureState === "starting" ||
-          captureState === "preparing" ||
-          (disabled && !recording)
+          busy || captureState === "starting" || captureState === "preparing"
         }
         onClick={() => {
           if (recording) {
@@ -680,7 +689,7 @@ function Speaking({
           )}
         </section>
       )}
-      {recorded && (
+      {recorded && !capturing && (
         <audio
           key={recorded.url}
           ref={player}

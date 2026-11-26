@@ -38,12 +38,16 @@ async function checkVisitor(
       expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
       expect(wav.readUInt32LE(24)).toBe(16000);
       expect(wav.readUInt32LE(40)).toBeGreaterThan(0);
+      const word = workshopOne.vocabulary.find(
+        (entry) => entry.id === upload.get("vocabularyId"),
+      );
+      if (!word) throw new Error("Missing the visitor flashcard target.");
       submittedAudio.push(wav);
       await route.fulfill({
         json: {
           available: true,
-          expected: "你好",
-          recognized: "你好",
+          expected: word.traditional,
+          recognized: word.traditional,
           message: "Phrase matched.",
           note: "Pronunciation score",
           assessment: {
@@ -78,6 +82,8 @@ async function checkVisitor(
         /Check pronunciation sends this recording to Azure Speech/,
       ),
     ).toBeVisible();
+    for (let i = 1; i < first.vocabularyIds.length; i++)
+      await page.getByRole("button", { name: "Next word" }).click();
     await page.getByRole("button", { name: "Start recording" }).click();
     const stop = page.getByRole("button", { name: "Stop recording" });
     await expect(stop).toBeVisible();
@@ -100,10 +106,23 @@ async function checkVisitor(
     await check.click();
     await expect.poll(() => submittedAudio.length).toBe(2);
     expect(submittedAudio[1]).toEqual(submittedAudio[0]);
-    for (let i = 1; i < first.vocabularyIds.length; i++)
-      await page.getByRole("button", { name: "Next word" }).click();
     await page.locator(".exercise-actions .btn").last().click();
     await expect(page.locator(".feedback")).toBeVisible();
+    await page.getByRole("button", { name: "Record again" }).click();
+    await expect(stop).toBeVisible();
+    await page.waitForTimeout(900);
+    await stop.click();
+    await replay.click();
+    await expect
+      .poll(() =>
+        page
+          .locator("audio")
+          .evaluate((media) => (media as HTMLAudioElement).currentTime),
+      )
+      .toBeGreaterThan(0);
+    await check.click();
+    await expect.poll(() => submittedAudio.length).toBe(3);
+    expect(submittedAudio[2]).not.toEqual(submittedAudio[0]);
     await page.getByRole("button", { name: "Back to journey map" }).click();
     await expect(
       page.getByRole("button", { name: "Continue practice" }),
