@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { analyze, generate } from "../lib/ai/lesson-generator";
+import { analyze, generate, grounded } from "../lib/ai/lesson-generator";
 import { normalizeAIProvenance } from "../lib/ai/provenance";
 import { analysisSchema } from "../lib/schema";
 import { sourceFromText } from "../lib/server/extraction";
@@ -99,6 +99,32 @@ test("AI analysis and generation accept flat source metadata while preserving st
     baseline.vocabulary[0].traditional,
     "an ungrounded first response should be corrected within the validation retry",
   );
+  const pdfText = "你 \n好、老\u200B師";
+  const pdfSource = sourceFromText(
+    "PDF extraction",
+    pdfText,
+    source.createdBy,
+    [{ text: pdfText, page: 3 }],
+  );
+  const mixedAnalysis = {
+    ...flatAnalysis,
+    vocabulary: ["你好", "老師", "老师", "您好"].map((traditional, index) => ({
+      ...flatAnalysis.vocabulary[0],
+      id: `pdf-word-${index}`,
+      traditional,
+    })),
+  };
+  queuedResponses = [mixedAnalysis, ungrounded];
+  const pdfAnalysis = (await analyze(pdfSource)).analysis;
+  assert.deepEqual(
+    pdfAnalysis.vocabulary.map((word) => word.traditional),
+    ["你好", "老師"],
+  );
+  assert.equal(pdfAnalysis.vocabulary[0].provenance?.sourcePage, 3);
+  assert.equal(pdfAnalysis.vocabulary[0].provenance?.sourceExcerpt, pdfText);
+  pdfAnalysis.vocabulary[0].traditional = "你好老師";
+  assert.throws(() => grounded(pdfAnalysis, pdfSource), /not grounded/);
+  queuedResponses = [];
   response = {
     ...template,
     vocabulary: template.vocabulary.map(flatten),

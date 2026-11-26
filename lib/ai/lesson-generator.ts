@@ -19,19 +19,39 @@ function promptSource(source: Source) {
     chunks: source.chunks,
   };
 }
+function comparisonText(text: string) {
+  return text
+    .normalize("NFC")
+    .replace(/[\u200B\uFEFF]/gu, "")
+    .replace(/(\p{Script=Han})\s+(?=\p{Script=Han})/gu, "$1")
+    .trim();
+}
+
+function vocabularySource(source: Source) {
+  const chunks = source.chunks.map((chunk) => ({
+    chunk,
+    text: comparisonText(chunk.text),
+  }));
+  return (word: string) => {
+    const text = comparisonText(word);
+    if (!text) return undefined;
+    return chunks.find((entry) => entry.text.includes(text))?.chunk;
+  };
+}
+
 function groundedAnalysisSchema(source: Source) {
-  return analysisSchema.superRefine((analysis, ctx) => {
-    for (const [index, vocabulary] of analysis.vocabulary.entries())
-      if (
-        !source.chunks.some((chunk) =>
-          chunk.text.includes(vocabulary.traditional),
-        )
-      )
-        ctx.addIssue({
-          code: "custom",
-          path: ["vocabulary", index, "traditional"],
-          message: "Vocabulary is not grounded in the workshop source.",
-        });
+  const findChunk = vocabularySource(source);
+  return analysisSchema.transform((analysis, ctx) => {
+    const vocabulary = analysis.vocabulary.filter((word) =>
+      findChunk(word.traditional),
+    );
+    if (!vocabulary.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["vocabulary"],
+        message: "Vocabulary is not grounded in the workshop source.",
+      });
+    return { ...analysis, vocabulary };
   });
 }
 export function grounded(
@@ -39,10 +59,13 @@ export function grounded(
   source: Source,
   generatedByAI = false,
 ) {
+  const findChunk = vocabularySource(source);
   for (const v of analysis.vocabulary) {
-    const chunk = source.chunks.find((c) => c.text.includes(v.traditional));
+    const chunk = findChunk(v.traditional);
     if (!chunk)
-      throw new Error("Vocabulary is not grounded in the workshop source.");
+      throw new Error(
+        "Vocabulary is not grounded in the workshop source. Use the Traditional Chinese wording from your material or remove the edited entry.",
+      );
     v.provenance = {
       sourceMaterialId: source.id,
       sourceChunk: chunk.index,

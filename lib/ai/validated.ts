@@ -68,7 +68,9 @@ export async function validatedAI<S extends z.ZodTypeAny>(
         issue.message === "Vocabulary is not grounded in the workshop source.",
     )
   )
-    throw new Error("Vocabulary is not grounded in the workshop source.");
+    throw new Error(
+      "Vocabulary is not grounded in the workshop source. Paste a few Traditional Chinese words or phrases directly from your material and try again.",
+    );
   throw new Error(
     `Generated ${kind} did not pass validation after correction. Try again or choose a different AI model in Developer setup. No draft was published.`,
   );
