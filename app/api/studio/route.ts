@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { analyze, generate, grounded } from "@/lib/ai/lesson-generator";
 import { analysisSchema, lessonSchema } from "@/lib/schema";
-import { extract, sourceFromText } from "@/lib/server/extraction";
+import {
+  extract,
+  sourceFromPdfPages,
+  sourceFromText,
+} from "@/lib/server/extraction";
 import {
   identity,
   requireVolunteer,
@@ -21,6 +25,7 @@ import { generateLessonAudio } from "@/lib/server/lesson-audio";
 import { withLessonLock } from "@/lib/server/lesson-lock";
 import { isArchivedSource } from "@/lib/content/retired-content";
 import {
+  studioTextLimit,
   studioUploadLimitBytes,
   studioUploadSizeError,
 } from "@/lib/studio-upload";
@@ -38,14 +43,26 @@ export async function POST(req: NextRequest) {
         throw new Error(studioUploadSizeError);
       const form = await req.formData();
       const file = form.get("file");
+      const pdfPages = form.get("pdfPages");
+      const filename = String(form.get("filename") || "Pasted workshop");
+      // JSON escapes can occupy up to six characters per input character.
+      if (
+        typeof pdfPages === "string" &&
+        pdfPages.length > studioTextLimit * 6 + 1024
+      )
+        throw new Error(
+          "Please split the workshop into smaller documents (60,000 characters maximum).",
+        );
       const source =
         file instanceof File
           ? await extract(file, user.id)
-          : sourceFromText(
-              String(form.get("filename") || "Pasted workshop"),
-              String(form.get("text") || ""),
-              user.id,
-            );
+          : typeof pdfPages === "string"
+            ? sourceFromPdfPages(
+                filename,
+                z.array(z.string()).parse(JSON.parse(pdfPages)),
+                user.id,
+              )
+            : sourceFromText(filename, String(form.get("text") || ""), user.id);
       const result = await analyze(source);
       await saveSource(user.client, source);
       return NextResponse.json({ source, ...result });

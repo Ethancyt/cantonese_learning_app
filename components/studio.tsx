@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { lessonAudioTexts } from "@/lib/lesson-audio";
 import {
+  studioTextLimit,
   studioUploadLimitBytes,
   studioUploadLimitMB,
   studioUploadSizeError,
@@ -121,13 +122,19 @@ export function Studio() {
       setError(studioUploadSizeError);
       return;
     }
-    const form = new FormData();
-    if (file) form.set("file", file);
-    else {
-      form.set("text", text);
-      form.set("filename", filename);
-    }
     await run(async () => {
+      const form = new FormData();
+      if (file && /\.pdf$/i.test(file.name)) {
+        const { extractPdfText } = await import("@/lib/pdf-text");
+        const pages = await extractPdfText(await file.arrayBuffer());
+        form.set("filename", file.name);
+        form.set("pdfPages", JSON.stringify(pages));
+      } else if (file) {
+        form.set("file", file);
+      } else {
+        form.set("text", text);
+        form.set("filename", filename);
+      }
       const result = await request("/api/studio", form);
       setSource(result.source);
       setAnalysis(result.analysis);
@@ -582,7 +589,7 @@ export function Studio() {
                     setText(e.target.value);
                     if (e.target.value.trim()) setFile(null);
                   }}
-                  maxLength={60000}
+                  maxLength={studioTextLimit}
                   rows={6}
                   placeholder={
                     "Goal: greet a workshop friend.\n你好 | nei5 hou2 | Hello\n早晨 | zou2 san4 | Good morning\n再見 | zoi3 gin3 | Goodbye"

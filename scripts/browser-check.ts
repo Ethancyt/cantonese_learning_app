@@ -234,6 +234,23 @@ async function main() {
   ).toBeVisible();
   await expect(page.getByText("Workshop Demo — 茶餐廳")).toHaveCount(0);
   await page.getByRole("button", { name: "Create practice journey" }).click();
+  await page
+    .locator("#material-file")
+    .setInputFiles("sample-materials/classroom-introductions.pdf");
+  const pdfUpload = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && request.url().endsWith("/api/studio"),
+  );
+  await page.getByRole("button", { name: "Find the learning content" }).click();
+  expect((await pdfUpload).postData()).toContain('name="pdfPages"');
+  await expect(
+    page.getByRole("heading", { name: "Here’s what your workshop contains." }),
+  ).toBeVisible();
+  await expect(page.getByText(/page 1/).first()).toBeVisible();
+  await page
+    .getByRole("button", { name: /Back to Studio · unsaved edits/ })
+    .click();
+  await page.getByRole("button", { name: "Create practice journey" }).click();
   await page.locator("#material-file").setInputFiles({
     name: "Example workshop upload.txt",
     mimeType: "text/plain",
