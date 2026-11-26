@@ -18,17 +18,19 @@ export async function extract(file: File, userId: string): Promise<Source> {
   if (ext === "pdf") {
     if (buffer.subarray(0, 5).toString() !== "%PDF-")
       throw new Error("Invalid PDF file.");
-    const { PDFParse } = await import("pdf-parse");
-    // PDFParse copies Buffers. Pass a view so large PDFs reuse the upload bytes.
-    const parser = new PDFParse({ data: new Uint8Array(bytes) });
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(bytes), {
+      disableFontFace: true,
+      useSystemFonts: false,
+    });
     try {
-      const result = await parser.getText({ first: 100 });
-      if (result.total > 100)
+      if (pdf.numPages > 100)
         throw new Error("Please split PDFs longer than 100 pages.");
-      pages = result.pages.map((p) => ({ page: p.num, text: p.text }));
+      const result = await extractText(pdf, { mergePages: false });
+      pages = result.text.map((text, index) => ({ page: index + 1, text }));
       text = pages.map((p) => p.text).join("\n");
     } finally {
-      await parser.destroy();
+      await pdf.loadingTask.destroy();
     }
   } else if (ext === "docx" || ext === "pptx") {
     if (buffer.subarray(0, 2).toString() !== "PK")

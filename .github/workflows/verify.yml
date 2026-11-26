@@ -74,7 +74,7 @@ jobs:
           );
           JS
       - run: npm run build:cloudflare
-      - name: Run Workshop 1 in the Workers runtime
+      - name: Run Workshop 1 and import a PDF in the Workers runtime
         run: |
           npx wrangler dev --ip 127.0.0.1 --port 8787 \
             --var APP_MODE:demo \
@@ -91,4 +91,18 @@ jobs:
           import { readFileSync } from 'node:fs';
           const data = JSON.parse(readFileSync(process.env.RUNNER_TEMP + '/workshop-data.json', 'utf8'));
           assert.equal(data.lessons.find((lesson) => lesson.id === 'workshop-2026-11-13')?.module.romanisation, 'yale');
+          const origin = 'http://127.0.0.1:8787';
+          const role = await fetch(origin + '/api/data', {
+            method: 'POST',
+            headers: { origin, 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'role', role: 'volunteer' }),
+          });
+          assert.equal(role.status, 200, await role.text());
+          const cookie = role.headers.getSetCookie().map((header) => header.split(';')[0]).join('; ');
+          const form = new FormData();
+          form.set('file', new File([readFileSync('sample-materials/classroom-introductions.pdf')], 'classroom-introductions.pdf', { type: 'application/pdf' }));
+          const upload = await fetch(origin + '/api/studio', { method: 'POST', headers: { origin, cookie }, body: form });
+          const result = await upload.json();
+          assert.equal(upload.status, 200, result.error);
+          assert.ok(result.analysis.vocabulary.length > 0);
           JS
