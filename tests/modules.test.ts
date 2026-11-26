@@ -12,10 +12,9 @@ import { lessonCompleted } from "../lib/lesson-completion";
 import { progress } from "../lib/progress";
 import { demoMaterial } from "./helpers/studio-material";
 
-const [workshop] = seedLessons;
+const [workshop, workshopTwo] = seedLessons;
 
 test("Workshop 1 covers the source topics with Yale readings and working learner references", async () => {
-  assert.equal(seedLessons.length, 1);
   assert.match(workshop.workshop, /13 November 2026/);
   const module = workshop.module!;
   assert.equal(module.romanisation, "yale");
@@ -58,6 +57,40 @@ test("Workshop 1 covers the source topics with Yale readings and working learner
   const audio = lessonAudioTexts(workshop);
   assert.ok(audio.length <= 200);
   assert.ok(audio.includes("市") && audio.includes("我住喺沙田。"));
+});
+
+test("Workshop 2 includes source examples, a study reference and all learner exercise formats", async () => {
+  assert.equal(workshopTwo.id, "workshop-2026-11-20");
+  assert.equal(workshopTwo.module?.unit, 2);
+  assert.equal(workshopTwo.module?.romanisation, "yale");
+  assert.deepEqual(
+    new Set(workshopTwo.exercises.map((exercise) => exercise.type)),
+    new Set([
+      "flashcard",
+      "match",
+      "multiple_choice",
+      "listen_choose",
+      "sentence_order",
+      "fill_blank",
+      "speak",
+      "conversation_choice",
+    ]),
+  );
+  const audio = lessonAudioTexts(workshopTwo);
+  assert.ok(audio.length <= 200);
+  for (const text of [
+    "一億零一百零三萬四千五百零二",
+    "九二八六",
+    "三千二百蚊",
+    "一杯凍奶茶，少甜少冰。",
+  ])
+    assert.ok(audio.includes(text), text);
+  const reference = await readFile(
+    `public${workshopTwo.module!.references![0].url}`,
+    "utf8",
+  );
+  assert.match(reference, /20 November 2026/);
+  assert.match(reference, /Workshop practice menu/);
 });
 
 test("personal speaking practice accepts learner-chosen details without a fixed audio or grading target", () => {
@@ -147,9 +180,9 @@ test("curriculum retirement preserves old snapshots, attempts, XP, submissions a
   upgradeCurriculum(db);
   assert.deepEqual(
     db.lessons.filter((l) => l.status === "published").map((l) => l.id),
-    [staffLesson.id, workshop.id],
+    [staffLesson.id, workshop.id, workshopTwo.id],
   );
-  assert.deepEqual(db.versions, [...original.versions, workshop]);
+  assert.deepEqual(db.versions, [...original.versions, workshop, workshopTwo]);
   assert.deepEqual(db.sources, original.sources);
   assert.deepEqual(db.attempts, original.attempts);
   assert.deepEqual(db.completions, original.completions);

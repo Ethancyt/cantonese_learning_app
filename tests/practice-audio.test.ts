@@ -7,7 +7,27 @@ import { seedLessons } from "../lib/seeds";
 import { exerciseVocabulary, speakingTarget } from "../lib/speaking-target";
 import { lessonAudioTexts } from "../lib/lesson-audio";
 import { listeningAudio } from "../lib/server/listening-audio";
+import {
+  isPublicWorkshopAudio,
+  publicWorkshopAudioTexts,
+} from "../lib/server/workshop-audio";
 import { readSettings } from "../lib/server/settings";
+
+test("public Workshop 2 audio is scoped to its published vocabulary and version", () => {
+  const [first, second] = seedLessons;
+  const recording = "一杯凍奶茶，少甜少冰。";
+  assert.ok(publicWorkshopAudioTexts.has(recording));
+  assert.ok(isPublicWorkshopAudio(second.id, second.version, recording));
+  assert.equal(
+    isPublicWorkshopAudio(first.id, first.version, recording),
+    false,
+  );
+  assert.equal(
+    isPublicWorkshopAudio(second.id, second.version + 1, recording),
+    false,
+  );
+  assert.equal(publicWorkshopAudioTexts.has("未發佈"), false);
+});
 
 test("existing courses authorize card pronunciation only for the displayed section vocabulary", () => {
   for (const lesson of seedLessons) {

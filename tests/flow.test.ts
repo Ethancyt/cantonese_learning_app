@@ -37,9 +37,11 @@ test(
     }
     const initial = await call("/api/data");
     assert.equal(initial.status, 200);
-    assert.equal(
-      initial.data.lessons.filter((l: any) => l.createdBy === "system").length,
-      1,
+    assert.deepEqual(
+      initial.data.lessons
+        .filter((l: any) => l.createdBy === "system")
+        .map((l: any) => l.id),
+      ["workshop-2026-11-13", "workshop-2026-11-20"],
     );
     assert.equal(
       (await call("/api/studio", { action: "generate" })).status,

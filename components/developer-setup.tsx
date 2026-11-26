@@ -740,8 +740,8 @@ export function DeveloperSetup() {
               <div>
                 <h2>Prepare your learning database</h2>
                 <p>
-                  Install the app tables, access rules, and Workshop 1 directly
-                  from this page. Existing app data is preserved.
+                  Install the app tables, access rules, and workshop lessons
+                  directly from this page. Existing app data is preserved.
                 </p>
               </div>
               <Database size={25} />

@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextRequest, NextResponse } from "next/server";
-import { workshopOne } from "@/lib/content/workshop-one";
+import { publicWorkshops } from "@/lib/content/public-workshops";
 import { speakingTarget } from "@/lib/speaking-target";
 import { failure, guard } from "@/lib/server/security";
 import { readSettings } from "@/lib/server/settings";
@@ -52,11 +52,15 @@ export async function POST(req: NextRequest) {
         { status: 413 },
       );
     const form = await recordingForm(req);
+    const lesson = publicWorkshops.find(
+      (workshop) =>
+        form?.get("lessonId") === workshop.id &&
+        form.get("version") === String(workshop.version),
+    );
     const target =
-      form?.get("lessonId") === workshopOne.id &&
-      form.get("version") === String(workshopOne.version)
+      form && lesson
         ? speakingTarget(
-            workshopOne,
+            lesson,
             String(form.get("exerciseId") || ""),
             String(form.get("vocabularyId") || ""),
           )
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest) {
     const audio = form?.get("audio");
     if (!target || !(audio instanceof File) || audio.type !== "audio/wav")
       return NextResponse.json(
-        { error: "Use a recording from a Workshop 1 pronunciation activity." },
+        { error: "Use a recording from a workshop pronunciation activity." },
         { status: 400 },
       );
 

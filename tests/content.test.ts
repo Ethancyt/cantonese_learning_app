@@ -9,7 +9,6 @@ import { mastery, progress } from "../lib/progress";
 import { speakingFeedback } from "../lib/ai/feedback";
 import JSZip from "jszip";
 test("the Workshop 1 lesson validates and covers the workshop exercise formats", () => {
-  assert.equal(seedLessons.length, 1);
   const [lesson] = seedLessons;
   assert.ok(lessonSchema.safeParse(lesson).success);
   assert.deepEqual(

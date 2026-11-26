@@ -1,4 +1,4 @@
-import { lessonSchema, type Exercise, type Lesson } from "../schema";
+import { lessonSchema, type Lesson } from "../schema";
 import {
   build,
   cards,
@@ -10,6 +10,7 @@ import {
   vocabulary,
   type Phrase,
 } from "./course-types";
+import { workshopSections, type WorkshopSection } from "./workshop-sections";
 
 const id = "workshop-2026-11-13";
 const words = vocabulary(`
@@ -132,18 +133,6 @@ const goodbye: Phrase = [
   "Nice to meet you! Bye-bye!",
 ];
 
-type Activity = [key: string, exercise: Partial<Exercise>, terms?: string[]];
-type Section = {
-  key: string;
-  title: string;
-  chinese: string;
-  description: string;
-  points: string[];
-  terms: string[];
-  examples: Phrase[];
-  dialogue?: [speaker: string, phrase: Phrase][];
-  activities: Activity[];
-};
 const greetingChoices = ["大家好", "聽日見", "早晨", "好高興識你"];
 const vocabularyMatch = (terms: string[]) =>
   match(terms.map((word) => [word, phrase(word)[2]]));
@@ -156,7 +145,7 @@ const grammarGap = (prompt: string, answer: "係" | "喺") =>
     "係 (haih) identifies someone. 喺 (hái) marks a location.",
   );
 
-const sections: Section[] = [
+const sections: WorkshopSection[] = [
   {
     key: "greetings",
     title: "Greetings",
@@ -716,50 +705,7 @@ const sections: Section[] = [
   },
 ];
 
-function example([traditional, jyutping, english]: Phrase) {
-  return { traditional, jyutping, english };
-}
-
-const exercises: Exercise[] = [];
-const moduleSections = sections.map((section, index) => {
-  const sectionId = `${id}-${section.key}`;
-  const activities = section.activities.map(
-    ([key, activity, tags], position) => {
-      const options = activity.options ?? [];
-      const offset = options.length ? (index + position) % options.length : 0;
-      return {
-        id: `${sectionId}-${key}`,
-        type: activity.type!,
-        instruction: activity.instruction!,
-        prompt: activity.prompt!,
-        jyutping: "",
-        english: "",
-        answer: "",
-        explanation: "Review the examples from this section and try again.",
-        difficulty: 1,
-        tags: tags ?? section.terms,
-        ...activity,
-        options: [...options.slice(offset), ...options.slice(0, offset)],
-      };
-    },
-  );
-  exercises.push(...activities);
-  return {
-    id: sectionId,
-    title: section.title,
-    title_zh: section.chinese,
-    description: section.description,
-    teachingPoints: section.points,
-    examples: section.examples.map(example),
-    dialogue:
-      section.dialogue?.map(([speaker, line]) => ({
-        speaker,
-        ...example(line),
-      })) ?? [],
-    vocabularyIds: section.terms.map((term) => `${id}-v-${term}`),
-    exerciseIds: activities.map((activity) => activity.id),
-  };
-});
+const { exercises, moduleSections } = workshopSections(id, sections);
 
 export const workshopOne: Lesson = lessonSchema.parse({
   id,

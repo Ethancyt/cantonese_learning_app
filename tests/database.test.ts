@@ -47,7 +47,7 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
   );
   assert.equal(
     (await pg.query("select * from published_versions")).rows.length,
-    2,
+    seedLessons.length + 1,
   );
   assert.deepEqual(
     (

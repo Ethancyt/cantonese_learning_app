@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { studioMaterial } from "../tests/helpers/studio-material";
 import { workshopOne } from "../lib/content/workshop-one";
+import { workshopTwo } from "../lib/content/workshop-two";
 
 async function checkVisitor(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
@@ -69,6 +70,16 @@ async function checkVisitor(
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await page.getByRole("link", { name: "Back to lessons" }).click();
+
+    await page.locator(`a[href="/journey/${workshopTwo.id}"]`).first().click();
+    await expect(
+      page.getByRole("heading", { name: workshopTwo.title_zh, exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".module-reference a")).toHaveAttribute(
+      "href",
+      workshopTwo.module!.references![0].url,
+    );
+    await page.goto(base);
 
     const first = workshopOne.module!.sections[0];
     await page.locator(`a[href="/journey/${workshopOne.id}"]`).first().click();
@@ -184,7 +195,10 @@ async function main() {
   await expect(
     page.getByRole("heading", { name: /Your after-class lessons/ }),
   ).toBeVisible();
-  await expect(page.locator(".card-unit")).toHaveText(["WORKSHOP 1"]);
+  await expect(page.locator(".card-unit")).toHaveText([
+    "WORKSHOP 1",
+    "WORKSHOP 2",
+  ]);
   await page.screenshot({
     path: path.join(artifacts, "dashboard-desktop.png"),
     fullPage: true,
@@ -200,12 +214,14 @@ async function main() {
       page.getByRole("heading", { name: lesson.title_zh, exact: true }),
     ).toBeVisible();
     const links = page.locator(".module-reference a");
-    await expect(links).toHaveCount(2);
+    await expect(links).toHaveCount(lesson.module.references.length);
     for (const [index, reference] of lesson.module.references.entries()) {
       await expect(links.nth(index)).toHaveAttribute("href", reference.url);
       const response = await context.request.get(base + reference.url);
       expect(response.ok()).toBe(true);
-      expect(await response.text()).toContain("13 November 2026");
+      expect(await response.text()).toContain(
+        lesson.workshop.split(" · ").at(-1),
+      );
     }
     await expect(page.locator(".module-path-section")).toHaveCount(
       lesson.module.sections.length,

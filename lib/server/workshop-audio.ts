@@ -1,5 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { workshopOne } from "../content/workshop-one";
+import { publicWorkshops } from "../content/public-workshops";
 import { lessonAudioTexts } from "../lesson-audio";
 import { listeningAudio, type SharedAudioCache } from "./listening-audio";
 import type { Settings } from "./settings";
@@ -10,18 +10,23 @@ declare global {
   }
 }
 
-export const publicWorkshopAudioTexts = new Set(lessonAudioTexts(workshopOne));
+const audioByWorkshop = new Map(
+  publicWorkshops.map((lesson) => [
+    lesson.id,
+    { version: lesson.version, texts: new Set(lessonAudioTexts(lesson)) },
+  ]),
+);
+export const publicWorkshopAudioTexts = new Set(
+  Array.from(audioByWorkshop.values()).flatMap(({ texts }) => [...texts]),
+);
 
 export function isPublicWorkshopAudio(
   lessonId: string,
   version: number,
   text: string,
 ) {
-  return (
-    lessonId === workshopOne.id &&
-    version === workshopOne.version &&
-    publicWorkshopAudioTexts.has(text)
-  );
+  const workshop = audioByWorkshop.get(lessonId);
+  return workshop?.version === version && workshop.texts.has(text);
 }
 
 export function workshopListeningAudio(

@@ -1,4 +1,4 @@
-import { workshopOne } from "./content/workshop-one";
+import { publicWorkshops } from "./content/public-workshops";
 import { Lesson, Vocabulary, Exercise, lessonSchema } from "./schema";
 const rows = [
   {
@@ -263,4 +263,4 @@ export const legacySeedLessons: Lesson[] = rows.map((r, i) => {
     updatedAt: "2026-01-01T00:00:00Z",
   });
 });
-export const seedLessons = [workshopOne];
+export const seedLessons = publicWorkshops;

@@ -141,6 +141,12 @@ The starter library now contains the Cantonese workshop held on **13 November 20
 - **Content and history.** Seeding uses the new lesson ID `workshop-2026-11-13` and can be safely repeated. It archives the former system content and publications based on the original café demo source. It retains published snapshots, source files, profiles, attempts, and completions. Existing demo files receive the same upgrade when loaded.
 - **Hosting.** Build with `npm ci` and `npm run build`. Run `npm run start:hosted` on a Node.js host with HTTPS and the existing production environment/persistent configuration. Configure the existing Azure speech providers if the deployment uses them. After seeding, sign in with a test learner and check the dashboard, both references, a listening item, completion, and Studio access with a staff account.
 
+## Workshop 2 rollout
+
+The **20 November 2026** workshop covers numbers, shopping prices, phone-number practice, and ordering food. Its journey includes the study reference and practice menu. Both built-in workshops are available in visitor mode.
+
+Run `npx tsx scripts/seed-supabase.ts > workshop-content.sql` and apply the generated SQL to the existing Supabase project as the database owner. The seed creates the `workshop-2026-11-20` lesson and its published version without a schema migration. Existing learner records and published lesson snapshots are retained. Deploy the Worker from the release commit to serve the new journey, reference and visitor audio.
+
 Future workshops can be published entirely in the Volunteer Studio with reviewed activities and their own learner-accessible reference links.
 
 ## Cloudflare Workers
@@ -157,7 +163,7 @@ for production. Preview builds can be verified before merging a release to
 
 Before serving learner traffic, set the Worker runtime variables
 `APP_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`, and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Apply the Workshop 1 content seed
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Apply the workshop content seed
 to the active Supabase project as described above. Use Worker secrets for any
 server-only credentials. Use the environment-based configuration on Workers,
 since its local filesystem cannot persist settings or learner data.

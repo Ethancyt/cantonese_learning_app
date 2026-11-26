@@ -155,14 +155,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (id !== refreshId.current) return;
       if (authClient && !session) {
         if (!visitor.current) {
-          const [{ VisitorPractice }, { workshopOne }, { publicLesson }] =
+          const [{ VisitorPractice }, { publicWorkshops }, { publicLesson }] =
             await Promise.all([
               import("@/lib/visitor-practice"),
-              import("@/lib/content/workshop-one"),
+              import("@/lib/content/public-workshops"),
               import("@/lib/presentation"),
             ]);
           if (id !== refreshId.current) return;
-          visitor.current = new VisitorPractice([publicLesson(workshopOne)]);
+          visitor.current = new VisitorPractice(
+            publicWorkshops.map(publicLesson),
+          );
         }
         setData(visitorData(visitor.current));
       } else {
