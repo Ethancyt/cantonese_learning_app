@@ -1400,9 +1400,8 @@ export function Studio() {
                 Generate lesson audio
               </button>
               <p className="setup-field-help">
-                Set up a voice provider in Developer setup first. Finished clips
-                are reused on retry; changing text generates a new clip.
-                Generation uses your provider quota.
+                Retrying reuses saved clips. Generating audio for new or edited
+                phrases uses your voice provider’s quota.
               </p>
               <div
                 style={{
