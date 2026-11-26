@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Check,
 } from "lucide-react";
-import { recordingToWav } from "@/lib/audio-recording";
+import { startSpeechRecording } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
 import { exerciseAudioText, hasChinese } from "@/lib/lesson-audio";
@@ -504,88 +504,73 @@ function Speaking({
 }) {
   const { data, request } = useApp();
   const visitor = data?.role === "visitor";
-  const [recording, setRecording] = useState(false),
-    [url, setUrl] = useState(""),
-    [blob, setBlob] = useState<Blob | null>(null),
+  const [captureState, setCaptureState] = useState<
+      "idle" | "starting" | "recording" | "preparing"
+    >("idle"),
+    [recorded, setRecorded] = useState<{ wav: Blob; url: string } | null>(null),
     [note, setNote] = useState(""),
     [busy, setBusy] = useState(false);
   const [assessment, setAssessment] = useState<PronunciationAssessment | null>(
     null,
   );
-  const recorder = useRef<MediaRecorder | null>(null),
-    stream = useRef<MediaStream | null>(null),
-    timer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    blobUrl = useRef(""),
+  const capture = useRef<AbortController | null>(null),
+    stopCapture = useRef<(() => void) | null>(null),
+    player = useRef<HTMLAudioElement | null>(null),
     active = useRef(true);
+  const recording = captureState === "recording";
+  const capturing = captureState !== "idle";
   useEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
-      if (timer.current) clearTimeout(timer.current);
-      if (recorder.current) {
-        recorder.current.onstop = null;
-        if (recorder.current.state !== "inactive") recorder.current.stop();
-      }
-      stream.current?.getTracks().forEach((t) => t.stop());
-      URL.revokeObjectURL(blobUrl.current);
+      capture.current?.abort();
     };
   }, []);
+  useEffect(() => {
+    return () => {
+      if (recorded) URL.revokeObjectURL(recorded.url);
+    };
+  }, [recorded]);
   async function start() {
+    if (capture.current) return;
+    const controller = new AbortController();
+    capture.current = controller;
+    player.current?.pause();
+    setCaptureState("starting");
+    setNote("Starting the microphone…");
+    setAssessment(null);
     try {
-      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        setNote(
-          "This browser cannot record here. Practise aloud and use “I practised aloud”.",
-        );
-        return;
-      }
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active.current) {
-        s.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      setAssessment(null);
-      setBlob(null);
-      setUrl("");
-      stream.current = s;
-      const r = new MediaRecorder(s);
-      recorder.current = r;
-      const parts: BlobPart[] = [];
-      r.ondataavailable = (ev) => {
-        if (ev.data.size) parts.push(ev.data);
-      };
-      r.onstop = () => {
-        s.getTracks().forEach((t) => t.stop());
-        const audio = new Blob(parts, { type: r.mimeType });
-        if (blobUrl.current) URL.revokeObjectURL(blobUrl.current);
-        blobUrl.current = URL.createObjectURL(audio);
-        setUrl(blobUrl.current);
-        setBlob(audio);
-        setRecording(false);
-        setNote(
-          "Your recording stays in this tab unless you choose “Check pronunciation”.",
-        );
-        onReady();
-      };
-      r.start();
-      setRecording(true);
+      const session = await startSpeechRecording(controller.signal);
+      if (controller.signal.aborted) return;
+      setRecorded(null);
+      stopCapture.current = session.stop;
+      setCaptureState("recording");
       setNote("Recording… stops automatically after 25 seconds.");
-      timer.current = setTimeout(() => {
-        if (r.state === "recording") r.stop();
-      }, 25000);
-    } catch {
+      const wav = await session.clip;
+      if (!wav || controller.signal.aborted) return;
+      setRecorded({ wav, url: URL.createObjectURL(wav) });
       setNote(
-        "Microphone permission was not granted. You can still practise aloud.",
+        "Recording ready. You can replay it or choose “Check pronunciation”.",
       );
+      onReady();
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setNote(
+          (e as Error).message || "Could not finish the recording. Try again.",
+        );
+    } finally {
+      capture.current = null;
+      stopCapture.current = null;
+      if (active.current) setCaptureState("idle");
     }
   }
   async function transcribe() {
-    if (!blob) return;
+    if (!recorded) return;
     setBusy(true);
     setAssessment(null);
     try {
-      const wav = await recordingToWav(blob);
       const form = new FormData();
-      form.set("audio", new File([wav], "practice.wav", { type: "audio/wav" }));
+      form.set("audio", recorded.wav, "practice.wav");
       form.set("lessonId", lesson.id);
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);
@@ -613,11 +598,17 @@ function Speaking({
       <button
         className={`record-button ${recording ? "recording" : ""}`}
         aria-label={recording ? "Stop recording" : "Start recording"}
-        disabled={busy || disabled}
+        disabled={
+          busy ||
+          captureState === "starting" ||
+          captureState === "preparing" ||
+          (disabled && !recording)
+        }
         onClick={() => {
           if (recording) {
-            if (timer.current) clearTimeout(timer.current);
-            recorder.current?.stop();
+            setCaptureState("preparing");
+            setNote("Preparing your recording…");
+            stopCapture.current?.();
           } else start();
         }}
       >
@@ -689,11 +680,36 @@ function Speaking({
           )}
         </section>
       )}
-      {url && <audio controls src={url} />}
+      {recorded && (
+        <audio
+          key={recorded.url}
+          ref={player}
+          controls
+          src={recorded.url}
+          aria-label="Your recording"
+        />
+      )}
       <div className="speech-controls">
-        {blob && !preview && (
+        {recorded && (
           <button
-            disabled={busy || recording || disabled}
+            disabled={capturing}
+            className="btn secondary"
+            onClick={async () => {
+              if (!player.current) return;
+              try {
+                player.current.currentTime = 0;
+                await player.current.play();
+              } catch {
+                setNote("Could not play this recording. Try recording again.");
+              }
+            }}
+          >
+            Replay recording
+          </button>
+        )}
+        {recorded && !preview && (
+          <button
+            disabled={busy || capturing}
             className="btn secondary"
             onClick={transcribe}
           >
@@ -702,7 +718,7 @@ function Speaking({
         )}
         <button
           className="btn secondary"
-          disabled={busy || recording || disabled}
+          disabled={busy || capturing || disabled}
           onClick={() => {
             onReady();
             setAssessment(null);

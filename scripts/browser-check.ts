@@ -8,16 +8,53 @@ async function checkVisitor(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
   base: string,
 ) {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ permissions: ["microphone"] });
   try {
     const page = await context.newPage();
     const progressWrites: string[] = [];
+    const submittedAudio: Buffer[] = [];
+    const pronunciationPath = "/api/workshop-pronunciation";
     page.on("request", (request) => {
       if (
         request.method() === "POST" &&
-        request.url().startsWith(base + "/api/")
+        request.url().startsWith(base + "/api/") &&
+        !request.url().endsWith(pronunciationPath)
       )
         progressWrites.push(request.url());
+    });
+    await page.route(base + pronunciationPath, async (route) => {
+      const request = route.request();
+      const upload = await new Response(
+        new Uint8Array(request.postDataBuffer()!),
+        {
+          headers: { "Content-Type": request.headers()["content-type"] },
+        },
+      ).formData();
+      const audio = upload.get("audio");
+      if (!(audio instanceof File))
+        throw new Error("Missing visitor recording.");
+      expect(audio.type).toBe("audio/wav");
+      const wav = Buffer.from(await audio.arrayBuffer());
+      expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
+      expect(wav.readUInt32LE(24)).toBe(16000);
+      expect(wav.readUInt32LE(40)).toBeGreaterThan(0);
+      submittedAudio.push(wav);
+      await route.fulfill({
+        json: {
+          available: true,
+          expected: "你好",
+          recognized: "你好",
+          message: "Phrase matched.",
+          note: "Pronunciation score",
+          assessment: {
+            overall: 90,
+            accuracy: 91,
+            fluency: 89,
+            completeness: 90,
+            words: [],
+          },
+        },
+      });
     });
     await page.goto(base);
     await expect(page.getByText(/practising as a visitor/)).toBeVisible();
@@ -41,6 +78,28 @@ async function checkVisitor(
         /Check pronunciation sends this recording to Azure Speech/,
       ),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Start recording" }).click();
+    const stop = page.getByRole("button", { name: "Stop recording" });
+    await expect(stop).toBeVisible();
+    await page.waitForTimeout(600);
+    await stop.click();
+    const replay = page.getByRole("button", { name: "Replay recording" });
+    await replay.click();
+    await expect
+      .poll(() =>
+        page
+          .locator("audio")
+          .evaluate((media) => (media as HTMLAudioElement).currentTime),
+      )
+      .toBeGreaterThan(0);
+    const check = page.getByRole("button", { name: "Check pronunciation" });
+    await check.click();
+    await expect(
+      page.getByRole("heading", { name: "Your pronunciation" }),
+    ).toBeVisible();
+    await check.click();
+    await expect.poll(() => submittedAudio.length).toBe(2);
+    expect(submittedAudio[1]).toEqual(submittedAudio[0]);
     for (let i = 1; i < first.vocabularyIds.length; i++)
       await page.getByRole("button", { name: "Next word" }).click();
     await page.locator(".exercise-actions .btn").last().click();
