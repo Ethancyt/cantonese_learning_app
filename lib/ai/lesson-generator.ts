@@ -9,7 +9,11 @@ import {
 } from "../schema";
 import { makeExercises } from "../seeds";
 import { provider } from "./provider";
-import { normalizeAIProvenance } from "./provenance";
+import {
+  comparisonText,
+  invalidActivitySource,
+  normalizeAIProvenance,
+} from "./provenance";
 import { completeLessonResponse } from "./lesson-response";
 import { validatedAI } from "./validated";
 function promptSource(source: Source) {
@@ -19,14 +23,6 @@ function promptSource(source: Source) {
     chunks: source.chunks,
   };
 }
-function comparisonText(text: string) {
-  return text
-    .normalize("NFC")
-    .replace(/[\u200B\uFEFF]/gu, "")
-    .replace(/(\p{Script=Han})\s+(?=\p{Script=Han})/gu, "$1")
-    .trim();
-}
-
 function vocabularySource(source: Source) {
   const chunks = source.chunks.map((chunk) => ({
     chunk,
@@ -207,6 +203,25 @@ export async function generate(
     );
   let lesson: Lesson;
   if (ai) {
+    const generatedLessonSchema = lessonSchema.superRefine((draft, ctx) => {
+      draft.exercises.forEach((exercise, index) => {
+        const p = exercise.provenance;
+        if (
+          !p ||
+          p.sourceMaterialId !== source.id ||
+          !comparisonText(p.sourceExcerpt) ||
+          !source.chunks.some(
+            (c) =>
+              c.index === p.sourceChunk && c.text.includes(p.sourceExcerpt),
+          )
+        )
+          ctx.addIssue({
+            code: "custom",
+            path: ["exercises", index, "provenance"],
+            message: invalidActivitySource,
+          });
+      });
+    });
     const style = references
       .map((l) => ({
         overlap: l.vocabulary.filter((v) =>
@@ -292,7 +307,7 @@ export async function generate(
           },
         },
       },
-      lessonSchema,
+      generatedLessonSchema,
       (response) =>
         completeLessonResponse(response, source, analysis, settings, id, now),
       "lesson",
@@ -388,15 +403,6 @@ export async function generate(
   for (const e of lesson.exercises) {
     if (!settings.types.includes(e.type) || !exerciseTypes.includes(e.type))
       throw new Error("The provider returned an unselected exercise type.");
-    const p = e.provenance;
-    if (
-      !p ||
-      p.sourceMaterialId !== source.id ||
-      !source.chunks.some(
-        (c) => c.index === p.sourceChunk && c.text.includes(p.sourceExcerpt),
-      )
-    )
-      throw new Error("Generated activity needs verified source provenance.");
   }
   return {
     lesson: lessonSchema.parse(structureWorkshop(lesson, analysis)),

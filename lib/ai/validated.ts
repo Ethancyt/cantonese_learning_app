@@ -5,6 +5,7 @@ import {
   generationRules,
   type AIProvider,
 } from "./provider";
+import { invalidActivitySource } from "./provenance";
 
 // Share one recovery request (validation or truncation) and one deadline.
 export async function validatedAI<S extends z.ZodTypeAny>(
@@ -62,6 +63,10 @@ export async function validatedAI<S extends z.ZodTypeAny>(
     };
   }
   if (truncated) throw truncated;
+  if (lastIssues.some((issue) => issue.message === invalidActivitySource))
+    throw new Error(
+      "Generated lesson could not verify the source citations after correction. Try again from Choose practice with fewer activity types. Your uploaded material is saved.",
+    );
   if (
     lastIssues.some(
       (issue) =>

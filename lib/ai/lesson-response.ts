@@ -1,6 +1,6 @@
 import type { Analysis, Source } from "../schema";
 import { normalizeAIActivities } from "./activities";
-import { normalizeAIProvenance } from "./provenance";
+import { comparisonText, normalizeAIProvenance } from "./provenance";
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -22,6 +22,7 @@ export function completeLessonResponse(
   );
   if (!record(response)) return response;
   const roleplay = response.roleplay;
+  const normalizedText = new Map<number, string>();
   return {
     workshop: source.filename,
     availability: "available",
@@ -33,12 +34,41 @@ export function completeLessonResponse(
     exercises: Array.isArray(response.exercises)
       ? response.exercises.map((entry: unknown) => {
           if (!record(entry) || !record(entry.provenance)) return entry;
+          const { sourceChunk, sourceExcerpt: quote } = entry.provenance;
+          const provenance = {
+            sourceMaterialId: source.id,
+            generatedByAI: true,
+            ...entry.provenance,
+          };
+          if (
+            provenance.sourceMaterialId !== source.id ||
+            typeof quote !== "string"
+          )
+            return { ...entry, provenance };
+          const comparison = comparisonText(quote);
+          if (!comparison) return { ...entry, provenance };
+          const cited = source.chunks.find(
+            (chunk) => chunk.index === sourceChunk,
+          );
+          const matches = (chunk: Source["chunks"][number]) => {
+            if (chunk.text.includes(quote)) return true;
+            const text =
+              normalizedText.get(chunk.index) ?? comparisonText(chunk.text);
+            normalizedText.set(chunk.index, text);
+            return text.includes(comparison);
+          };
+          // Use the cited page if the quote matches. A model can miscopy the index.
+          const chunk =
+            cited && matches(cited) ? cited : source.chunks.find(matches);
+          if (!chunk) return { ...entry, provenance };
           return {
             ...entry,
             provenance: {
-              sourceMaterialId: source.id,
-              generatedByAI: true,
-              ...entry.provenance,
+              ...provenance,
+              sourceChunk: chunk.index,
+              sourcePage: chunk.page,
+              // Keep the original source text when PDF spacing changed the quote.
+              sourceExcerpt: chunk.text.includes(quote) ? quote : chunk.text,
             },
           };
         })

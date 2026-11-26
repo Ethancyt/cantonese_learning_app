@@ -50,6 +50,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
   };
   let response: unknown = flatAnalysis;
   let queuedResponses: unknown[] = [];
+  let lastPrompt: Record<string, unknown> = {};
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(String(options?.body));
     assert.match(
@@ -57,6 +58,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
       /nested provenance object|Return no provenance or source excerpts/,
     );
     const prompt = JSON.parse(request.messages[1].content);
+    lastPrompt = prompt;
     if (prompt.source)
       assert.equal(
         Object.hasOwn(prompt.source, "text"),
@@ -122,8 +124,9 @@ test("AI analysis and generation accept flat source metadata while preserving st
   );
   assert.equal(pdfAnalysis.vocabulary[0].provenance?.sourcePage, 3);
   assert.equal(pdfAnalysis.vocabulary[0].provenance?.sourceExcerpt, pdfText);
-  pdfAnalysis.vocabulary[0].traditional = "你好老師";
-  assert.throws(() => grounded(pdfAnalysis, pdfSource), /not grounded/);
+  const editedPdfAnalysis = structuredClone(pdfAnalysis);
+  editedPdfAnalysis.vocabulary[0].traditional = "你好老師";
+  assert.throws(() => grounded(editedPdfAnalysis, pdfSource), /not grounded/);
   queuedResponses = [];
   response = {
     ...template,
@@ -210,6 +213,27 @@ test("AI analysis and generation accept flat source metadata while preserving st
     compactResult.lesson.roleplay.allowedVocabulary,
     analyzed.analysis.vocabulary.map((v) => v.traditional),
   );
+
+  const spacedCitation = {
+    ...compact,
+    title: "PDF quote",
+    exercises: [
+      {
+        ...compact.exercises[0],
+        provenance: { sourceChunk: 12, sourceExcerpt: "你好" },
+      },
+    ],
+  };
+  response = spacedCitation;
+  const repairedCitation = await generate(pdfSource, pdfAnalysis, settings, []);
+  assert.deepEqual(repairedCitation.lesson.exercises[0].provenance, {
+    sourceMaterialId: pdfSource.id,
+    sourceChunk: 0,
+    sourcePage: 3,
+    sourceExcerpt: pdfText,
+    generatedByAI: true,
+  });
+
   const forged = structuredClone(compact);
   Object.assign(forged.exercises[0].provenance, {
     sourceMaterialId: "unrelated-source",
@@ -217,7 +241,7 @@ test("AI analysis and generation accept flat source metadata while preserving st
   response = forged;
   await assert.rejects(
     () => generate(source, analyzed.analysis, settings, []),
-    /verified source provenance/,
+    /could not verify the source citations after correction/,
   );
 
   const invalid = structuredClone(fullResponse) as typeof template;
@@ -226,8 +250,19 @@ test("AI analysis and generation accept flat source metadata while preserving st
   response = invalid;
   await assert.rejects(
     () => generate(source, analyzed.analysis, settings, []),
-    /verified source provenance/,
+    /could not verify the source citations after correction/,
   );
+  const blank = structuredClone(compact);
+  blank.exercises[0].provenance.sourceExcerpt = " \n";
+  queuedResponses = [blank, compact];
+  const corrected = await generate(source, analyzed.analysis, settings, []);
+  assert.equal(corrected.lesson.exercises.length, compact.exercises.length);
+  assert.deepEqual(lastPrompt.validationErrors, [
+    {
+      path: ["exercises", 0, "provenance"],
+      message: "Generated activity needs verified source provenance.",
+    },
+  ]);
 
   const extra = structuredClone(flatAnalysis);
   (extra.vocabulary[0] as Record<string, unknown>).unexpectedField =
