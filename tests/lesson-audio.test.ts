@@ -93,6 +93,11 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     calls[1].body,
     /你好！<phoneme alphabet="sapi" ph="hou 2 gou 1 hing 3 sik 1 nei 5">好高興識你<\/phoneme>！/,
   );
+  await synthesize("聽日見！聽日你去邊度呀？", azure);
+  assert.match(
+    calls[2].body,
+    /<phoneme alphabet="sapi" ph="ting 1 jat 6 gin 3">聽日見<\/phoneme>！<phoneme alphabet="sapi" ph="ting 1 jat 6">聽日<\/phoneme>你去邊度<phoneme alphabet="sapi" ph="aa 3">呀<\/phoneme>？/,
+  );
   const previousAzureClip = (text: string) =>
     createHash("sha256")
       .update(
@@ -111,6 +116,11 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     previousAzureClip("好高興識你"),
   );
   assert.equal(clipIdentity("你好", azure), previousAzureClip("你好"));
+  for (const corrected of ["聽日見", "呀？", "你叫咩名呀？"])
+    assert.notEqual(
+      clipIdentity(corrected, azure),
+      previousAzureClip(corrected),
+    );
   await saveSettings({
     ttsProvider: "compatible",
     ttsKey: "private-compatible-key",
