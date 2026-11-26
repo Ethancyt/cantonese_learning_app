@@ -562,9 +562,7 @@ function Speaking({
         setBlob(audio);
         setRecording(false);
         setNote(
-          visitor
-            ? "Your recording stays in this tab."
-            : "Recording stays on this device unless you choose “Check pronunciation”.",
+          "Your recording stays in this tab unless you choose “Check pronunciation”.",
         );
         onReady();
       };
@@ -592,7 +590,10 @@ function Speaking({
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);
       if (vocabularyId) form.set("vocabularyId", vocabularyId);
-      const result = await request("/api/transcribe", form);
+      const result = await request(
+        visitor ? "/api/workshop-pronunciation" : "/api/transcribe",
+        form,
+      );
       if (!active.current) return;
       const parsed = pronunciationSchema.safeParse(result.assessment);
       if (result.available && parsed.success) setAssessment(parsed.data);
@@ -690,7 +691,7 @@ function Speaking({
       )}
       {url && <audio controls src={url} />}
       <div className="speech-controls">
-        {blob && !preview && !visitor && (
+        {blob && !preview && (
           <button
             disabled={busy || recording || disabled}
             className="btn secondary"
@@ -715,7 +716,7 @@ function Speaking({
       </div>
       <p className="help-text" style={{ marginTop: 18 }}>
         {visitor
-          ? "Listen back to your recording or practise aloud. Sign in for pronunciation feedback."
+          ? "Check pronunciation sends this recording to Azure Speech for scoring. Your recording and score are not saved by this app."
           : "Record the target phrase, then check pronunciation. Azure can assess accuracy, fluency, completeness, and individual words. You can also practise aloud without an automatic score."}
       </p>
     </div>

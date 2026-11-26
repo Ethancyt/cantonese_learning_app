@@ -36,6 +36,11 @@ async function checkVisitor(
     await expect(page.getByRole("button", { name: "Save word" })).toHaveCount(
       0,
     );
+    await expect(
+      page.getByText(
+        /Check pronunciation sends this recording to Azure Speech/,
+      ),
+    ).toBeVisible();
     for (let i = 1; i < first.vocabularyIds.length; i++)
       await page.getByRole("button", { name: "Next word" }).click();
     await page.locator(".exercise-actions .btn").last().click();

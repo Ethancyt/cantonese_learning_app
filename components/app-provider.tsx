@@ -130,6 +130,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const request = useCallback(
     async (path: string, body?: unknown) => {
       if (data?.role === "visitor") {
+        if (path === "/api/workshop-pronunciation" && body instanceof FormData)
+          return serverRequest(path, body);
         if (path !== "/api/data" || !visitor.current)
           throw new Error("Sign in to use this feature.");
         if (!body) return visitorData(visitor.current);

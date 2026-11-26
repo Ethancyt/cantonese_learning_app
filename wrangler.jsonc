@@ -15,6 +15,9 @@
   "kv_namespaces": [
     { "binding": "WORKSHOP_AUDIO", "id": "a11a022d75e54e0fb7a1c3b572829d86" }
   ],
+  "ratelimits": [
+    { "name": "VISITOR_PRONUNCIATION", "namespace_id": "89726", "simple": { "limit": 20, "period": 60 } }
+  ],
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
@@ -30,6 +33,9 @@
   "previews": {
     "kv_namespaces": [
       { "binding": "WORKSHOP_AUDIO", "id": "a11a022d75e54e0fb7a1c3b572829d86" }
+    ],
+    "ratelimits": [
+      { "name": "VISITOR_PRONUNCIATION", "namespace_id": "89727", "simple": { "limit": 20, "period": 60 } }
     ]
   }
 }
