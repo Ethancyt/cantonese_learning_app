@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { seedLessons } from "../lib/seeds";
+import { curriculumModules } from "../lib/content/modules";
 import { applyLearningDatabase } from "../lib/server/developer-services";
 test("developer database button installs atomically and upgrades without duplicating modules", async (t) => {
   const pg = new PGlite();
@@ -19,42 +20,40 @@ test("developer database button installs atomically and upgrades without duplica
     return { rows: (results.at(-1)?.rows as Record<string, unknown>[]) || [] };
   };
   await applyLearningDatabase(query);
-  // Model a local installation with an earlier system curriculum and its
-  // immutable publication. Re-initializing must restore current lessons while
-  // retaining that older content exactly.
-  const previousLesson = {
-    ...structuredClone(seedLessons[0]),
-    version: 2,
-    title: "Previous class material",
-  };
-  await pg.query("update lessons set version=2,payload=$1 where id=$2", [
-    JSON.stringify(previousLesson),
-    previousLesson.id,
-  ]);
+  const previousLesson = curriculumModules[0];
   await pg.query(
-    "insert into published_versions(lesson_id,version,payload) values($1,2,$2)",
-    [previousLesson.id, JSON.stringify(previousLesson)],
+    "insert into lessons(id,status,version,payload) values($1,'published',$2,$3)",
+    [previousLesson.id, previousLesson.version, JSON.stringify(previousLesson)],
+  );
+  await pg.query(
+    "insert into published_versions(lesson_id,version,payload) values($1,$2,$3)",
+    [previousLesson.id, previousLesson.version, JSON.stringify(previousLesson)],
   );
   const original = (
-    await pg.query("select * from published_versions order by lesson_id")
+    await pg.query(
+      "select * from published_versions order by lesson_id, version",
+    )
   ).rows;
   await applyLearningDatabase(query);
   assert.equal(
     (
-      await pg.query<{ version: number }>(
-        "select version from lessons where id='start'",
+      await pg.query<{ status: string }>(
+        "select status from lessons where id='start'",
       )
-    ).rows[0].version,
-    3,
+    ).rows[0].status,
+    "archived",
   );
   assert.deepEqual(
-    (await pg.query("select * from published_versions order by lesson_id"))
-      .rows,
+    (
+      await pg.query(
+        "select * from published_versions order by lesson_id, version",
+      )
+    ).rows,
     original,
   );
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
-    seedLessons.reduce(
+    [...seedLessons, previousLesson].reduce(
       (count, lesson) => count + lesson.module!.sections.length,
       0,
     ),
@@ -69,7 +68,7 @@ test("developer database button installs atomically and upgrades without duplica
   await assert.rejects(() => applyLearningDatabase(query), /do not match/);
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
-    seedLessons.reduce(
+    [...seedLessons, previousLesson].reduce(
       (count, lesson) => count + lesson.module!.sections.length,
       0,
     ),

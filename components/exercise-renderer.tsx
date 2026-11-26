@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Check,
 } from "lucide-react";
-import { recordingToWav } from "@/lib/audio-recording";
+import { startSpeechRecording } from "@/lib/audio-recording";
 import { Exercise, Lesson } from "@/lib/schema";
 import { ListenButton } from "./dashboard";
 import { exerciseAudioText, hasChinese } from "@/lib/lesson-audio";
@@ -70,6 +70,7 @@ export function ExerciseRenderer({
   disabled?: boolean;
   preview?: boolean;
 }) {
+  const visitor = useApp().data?.role === "visitor";
   const [selected, setSelected] = useState(""),
     [tokens, setTokens] = useState<number[]>([]),
     [pairLeft, setPairLeft] = useState(""),
@@ -108,10 +109,16 @@ export function ExerciseRenderer({
           )}
         </>
       )}
-      {["listen_choose", "speak"].includes(e.type) && (
+      {!e.personalPractice && ["listen_choose", "speak"].includes(e.type) && (
         <ListenButton lesson={lesson} text={exerciseAudioText(e)} />
       )}
-      {e.type === "speak" && e.answer !== e.prompt && (
+      {visitor && e.type === "listen_choose" && (
+        <details className="help-text">
+          <summary>Show the written phrase</summary>
+          <p lang="zh-HK">{exerciseAudioText(e)}</p>
+        </details>
+      )}
+      {e.type === "speak" && !e.personalPractice && e.answer !== e.prompt && (
         <p className="help-text">
           Say: <strong>{e.answer}</strong>
         </p>
@@ -149,23 +156,25 @@ export function ExerciseRenderer({
           </button>
           <div className="speech-controls">
             <ListenButton lesson={lesson} text={vocabulary[card].traditional} />
-            <button
-              className="btn secondary"
-              onClick={() => {
-                const ids = JSON.parse(
-                  localStorage.getItem("saved-words") || "[]",
-                );
-                const id = vocabulary[card].traditional;
-                localStorage.setItem(
-                  "saved-words",
-                  JSON.stringify([...new Set([...ids, id])]),
-                );
-                setSaved(true);
-              }}
-            >
-              <Bookmark size={14} />
-              {saved ? "Saved to wordbook" : "Save word"}
-            </button>
+            {!visitor && (
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  const ids = JSON.parse(
+                    localStorage.getItem("saved-words") || "[]",
+                  );
+                  const id = vocabulary[card].traditional;
+                  localStorage.setItem(
+                    "saved-words",
+                    JSON.stringify([...new Set([...ids, id])]),
+                  );
+                  setSaved(true);
+                }}
+              >
+                <Bookmark size={14} />
+                {saved ? "Saved to wordbook" : "Save word"}
+              </button>
+            )}
           </div>
           <div className="flash-nav">
             <button
@@ -370,7 +379,15 @@ export function ExerciseRenderer({
           </button>
         </>
       )}
-      {e.type === "speak" && (
+      {e.personalPractice && (
+        <PersonalPractice
+          frames={e.personalPractice}
+          vocabulary={lesson.vocabulary}
+          disabled={disabled}
+          onReady={(ready) => onAnswer("practised", ready)}
+        />
+      )}
+      {e.type === "speak" && !e.personalPractice && (
         <Speaking
           lesson={lesson}
           exercise={e}
@@ -389,6 +406,85 @@ export function ExerciseRenderer({
     </div>
   );
 }
+function PersonalPractice({
+  frames,
+  vocabulary,
+  disabled,
+  onReady,
+}: {
+  frames: NonNullable<Exercise["personalPractice"]>;
+  vocabulary: Lesson["vocabulary"];
+  disabled: boolean;
+  onReady: (ready: boolean) => void;
+}) {
+  const [values, setValues] = useState(() => frames.map(() => ""));
+  return (
+    <div className="form-grid">
+      <p className="help-text full-width">
+        Use your preferred name and any real or fictional details you choose.
+        Enter a city or area for your home. Your entries stay in this exercise.
+      </p>
+      {frames.map((frame, i) => {
+        const value = values[i].trim();
+        const word = vocabulary.find((word) =>
+          [word.traditional, word.english].some(
+            (text) => text.toLowerCase() === value.toLowerCase(),
+          ),
+        );
+        return (
+          <div className="field full-width" key={frame.label}>
+            <label className="field">
+              {frame.label}
+              <input
+                autoComplete="off"
+                maxLength={70}
+                disabled={disabled}
+                value={values[i]}
+                onChange={(event) => {
+                  setValues(
+                    values.map((entry, index) =>
+                      index === i ? event.target.value : entry,
+                    ),
+                  );
+                  onReady(false);
+                }}
+              />
+            </label>
+            <div className="dialogue-line">
+              <strong lang="zh-HK">
+                {frame.traditional.replace(
+                  "＿＿",
+                  () => word?.traditional || value || "＿＿",
+                )}
+              </strong>
+              <div className="jyutping">
+                {frame.yale.replace(
+                  "＿＿",
+                  () => word?.jyutping || value || "＿＿",
+                )}
+              </div>
+              <p>
+                {frame.english.replace(
+                  "＿＿",
+                  () => word?.english || value || "＿＿",
+                )}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="btn secondary"
+        disabled={disabled || values.some((value) => !value.trim())}
+        onClick={() => onReady(true)}
+      >
+        I said it aloud
+      </button>
+    </div>
+  );
+}
+
 function Speaking({
   lesson,
   exercise,
@@ -406,94 +502,82 @@ function Speaking({
   targetText?: string;
   disabled?: boolean;
 }) {
-  const { request } = useApp();
-  const [recording, setRecording] = useState(false),
-    [url, setUrl] = useState(""),
-    [blob, setBlob] = useState<Blob | null>(null),
+  const { data, request } = useApp();
+  const visitor = data?.role === "visitor";
+  const [captureState, setCaptureState] = useState<
+      "idle" | "starting" | "recording" | "preparing"
+    >("idle"),
+    [recorded, setRecorded] = useState<{ wav: Blob; url: string } | null>(null),
     [note, setNote] = useState(""),
     [busy, setBusy] = useState(false);
   const [assessment, setAssessment] = useState<PronunciationAssessment | null>(
     null,
   );
-  const recorder = useRef<MediaRecorder | null>(null),
-    stream = useRef<MediaStream | null>(null),
-    timer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    blobUrl = useRef(""),
+  const capture = useRef<AbortController | null>(null),
+    stopCapture = useRef<(() => void) | null>(null),
+    player = useRef<HTMLAudioElement | null>(null),
     active = useRef(true);
+  const recording = captureState === "recording";
+  const capturing = captureState !== "idle";
   useEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
-      if (timer.current) clearTimeout(timer.current);
-      if (recorder.current) {
-        recorder.current.onstop = null;
-        if (recorder.current.state !== "inactive") recorder.current.stop();
-      }
-      stream.current?.getTracks().forEach((t) => t.stop());
-      URL.revokeObjectURL(blobUrl.current);
+      capture.current?.abort();
     };
   }, []);
+  useEffect(() => {
+    return () => {
+      if (recorded) URL.revokeObjectURL(recorded.url);
+    };
+  }, [recorded]);
   async function start() {
+    if (capture.current) return;
+    const controller = new AbortController();
+    capture.current = controller;
+    player.current?.pause();
+    setCaptureState("starting");
+    setNote("Starting the microphone…");
+    setAssessment(null);
     try {
-      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        setNote(
-          "This browser cannot record here. Practise aloud and use “I practised aloud”.",
-        );
-        return;
-      }
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active.current) {
-        s.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      setAssessment(null);
-      setBlob(null);
-      setUrl("");
-      stream.current = s;
-      const r = new MediaRecorder(s);
-      recorder.current = r;
-      const parts: BlobPart[] = [];
-      r.ondataavailable = (ev) => {
-        if (ev.data.size) parts.push(ev.data);
-      };
-      r.onstop = () => {
-        s.getTracks().forEach((t) => t.stop());
-        const audio = new Blob(parts, { type: r.mimeType });
-        if (blobUrl.current) URL.revokeObjectURL(blobUrl.current);
-        blobUrl.current = URL.createObjectURL(audio);
-        setUrl(blobUrl.current);
-        setBlob(audio);
-        setRecording(false);
-        setNote(
-          "Recording stays on this device unless you choose “Check pronunciation”.",
-        );
-        onReady();
-      };
-      r.start();
-      setRecording(true);
+      const session = await startSpeechRecording(controller.signal);
+      if (controller.signal.aborted) return;
+      stopCapture.current = session.stop;
+      setCaptureState("recording");
       setNote("Recording… stops automatically after 25 seconds.");
-      timer.current = setTimeout(() => {
-        if (r.state === "recording") r.stop();
-      }, 25000);
-    } catch {
+      const wav = await session.clip;
+      if (!wav || controller.signal.aborted) return;
+      setRecorded({ wav, url: URL.createObjectURL(wav) });
       setNote(
-        "Microphone permission was not granted. You can still practise aloud.",
+        "Recording ready. You can replay it, check pronunciation, or record again.",
       );
+      onReady();
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setNote(
+          (e as Error).message || "Could not finish the recording. Try again.",
+        );
+    } finally {
+      capture.current = null;
+      stopCapture.current = null;
+      if (active.current) setCaptureState("idle");
     }
   }
   async function transcribe() {
-    if (!blob) return;
+    if (!recorded) return;
     setBusy(true);
     setAssessment(null);
     try {
-      const wav = await recordingToWav(blob);
       const form = new FormData();
-      form.set("audio", new File([wav], "practice.wav", { type: "audio/wav" }));
+      form.set("audio", recorded.wav, "practice.wav");
       form.set("lessonId", lesson.id);
       form.set("version", String(lesson.version));
       form.set("exerciseId", exercise.id);
       if (vocabularyId) form.set("vocabularyId", vocabularyId);
-      const result = await request("/api/transcribe", form);
+      const result = await request(
+        visitor ? "/api/workshop-pronunciation" : "/api/transcribe",
+        form,
+      );
       if (!active.current) return;
       const parsed = pronunciationSchema.safeParse(result.assessment);
       if (result.available && parsed.success) setAssessment(parsed.data);
@@ -512,12 +596,28 @@ function Speaking({
     <div className="speaking">
       <button
         className={`record-button ${recording ? "recording" : ""}`}
-        aria-label={recording ? "Stop recording" : "Start recording"}
-        disabled={busy || disabled}
+        aria-label={
+          recording
+            ? "Stop recording"
+            : recorded
+              ? "Record again"
+              : "Start recording"
+        }
+        title={
+          recording
+            ? "Stop recording"
+            : recorded
+              ? "Record again"
+              : "Start recording"
+        }
+        disabled={
+          busy || captureState === "starting" || captureState === "preparing"
+        }
         onClick={() => {
           if (recording) {
-            if (timer.current) clearTimeout(timer.current);
-            recorder.current?.stop();
+            setCaptureState("preparing");
+            setNote("Preparing your recording…");
+            stopCapture.current?.();
           } else start();
         }}
       >
@@ -589,11 +689,36 @@ function Speaking({
           )}
         </section>
       )}
-      {url && <audio controls src={url} />}
+      {recorded && !capturing && (
+        <audio
+          key={recorded.url}
+          ref={player}
+          controls
+          src={recorded.url}
+          aria-label="Your recording"
+        />
+      )}
       <div className="speech-controls">
-        {blob && !preview && (
+        {recorded && (
           <button
-            disabled={busy || recording || disabled}
+            disabled={capturing}
+            className="btn secondary"
+            onClick={async () => {
+              if (!player.current) return;
+              try {
+                player.current.currentTime = 0;
+                await player.current.play();
+              } catch {
+                setNote("Could not play this recording. Try recording again.");
+              }
+            }}
+          >
+            Replay recording
+          </button>
+        )}
+        {recorded && !preview && (
+          <button
+            disabled={busy || capturing}
             className="btn secondary"
             onClick={transcribe}
           >
@@ -602,7 +727,7 @@ function Speaking({
         )}
         <button
           className="btn secondary"
-          disabled={busy || recording || disabled}
+          disabled={busy || capturing || disabled}
           onClick={() => {
             onReady();
             setAssessment(null);
@@ -615,9 +740,9 @@ function Speaking({
         </button>
       </div>
       <p className="help-text" style={{ marginTop: 18 }}>
-        Record the target phrase, then check pronunciation. Azure can assess
-        accuracy, fluency, completeness, and individual words. You can also
-        practise aloud without an automatic score.
+        {visitor
+          ? "Check pronunciation sends this recording to Azure Speech for scoring. Your recording and score are not saved by this app."
+          : "Record the target phrase, then check pronunciation. Azure can assess accuracy, fluency, completeness, and individual words. You can also practise aloud without an automatic score."}
       </p>
     </div>
   );

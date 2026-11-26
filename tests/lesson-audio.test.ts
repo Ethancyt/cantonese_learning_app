@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -87,13 +88,89 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     calls[0].headers.get("Ocp-Apim-Subscription-Key"),
     "private-voice-key",
   );
+  await synthesize("你好！好高興識你！", azure);
+  assert.match(
+    calls[1].body,
+    /你好！<phoneme alphabet="sapi" ph="hou 2 gou 1 hing 3 sik 1 nei 5">好高興識你<\/phoneme>！/,
+  );
+  await synthesize("聽日見！聽日你去邊度呀？", azure);
+  assert.match(
+    calls[2].body,
+    /<phoneme alphabet="sapi" ph="ting 1 jat 6 gin 3">聽日見<\/phoneme>！<phoneme alphabet="sapi" ph="ting 1 jat 6">聽日<\/phoneme>你去邊度<phoneme alphabet="sapi" ph="aa 3">呀<\/phoneme>？/,
+  );
+  const previousAzureClip = (text: string, ...overrides: string[]) =>
+    createHash("sha256")
+      .update(
+        JSON.stringify([
+          "cantonese-audio-v1",
+          text,
+          "azure",
+          azure.azureRegion,
+          azure.azureVoice,
+          "ssml-rate-minus-15",
+          ...overrides,
+        ]),
+      )
+      .digest("hex");
+  assert.notEqual(
+    clipIdentity("好高興識你", azure),
+    previousAzureClip("好高興識你"),
+  );
+  assert.equal(clipIdentity("你好", azure), previousAzureClip("你好"));
+  for (const corrected of ["聽日見", "呀？"])
+    assert.notEqual(
+      clipIdentity(corrected, azure),
+      previousAzureClip(corrected),
+    );
+  const workshopQuestions = {
+    "你叫咩名呀？": "nei 5 giu 3 me 1 meng 2 aa 3",
+    "你姓咩呀？": "nei 5 sing 3 me 1 aa 3",
+    "你係邊度人呀？": "nei 5 hai 6 bin 1 dou 6 jan 4 aa 3",
+    "你住喺邊度呀？": "nei 5 zyu 6 hai 2 bin 1 dou 6 aa 3",
+  };
+  assert.deepEqual(
+    lessonAudioTexts(seedLessons[0])
+      .filter((text) => text !== "呀？" && text.endsWith("呀？"))
+      .sort(),
+    Object.keys(workshopQuestions).sort(),
+  );
+  for (const [question, reading] of Object.entries(workshopQuestions)) {
+    await synthesize(question, azure);
+    assert.ok(
+      calls
+        .at(-1)
+        ?.body.includes(
+          `<phoneme alphabet="sapi" ph="${reading}">${question.slice(0, -1)}</phoneme>？`,
+        ),
+    );
+    assert.notEqual(
+      clipIdentity(question, azure),
+      previousAzureClip(
+        question,
+        '<phoneme alphabet="sapi" ph="aa 3">呀</phoneme>',
+      ),
+    );
+  }
+  await synthesize("名", azure);
+  assert.ok(
+    calls
+      .at(-1)
+      ?.body.includes('<phoneme alphabet="sapi" ph="meng 2">名</phoneme>'),
+  );
+  assert.notEqual(clipIdentity("名", azure), previousAzureClip("名"));
+  assert.equal(clipIdentity("有名", azure), previousAzureClip("有名"));
   await saveSettings({
     ttsProvider: "compatible",
     ttsKey: "private-compatible-key",
     ttsModel: "tts-1",
   });
-  const lesson = structuredClone(seedLessons[1]);
+  const lesson = structuredClone(seedLessons[0]);
   lesson.id = "audio-test-draft";
+  lesson.vocabulary[0] = {
+    ...lesson.vocabulary[0],
+    traditional: "測試錄音",
+    example: "測試錄音",
+  };
   lesson.createdBy = crypto.randomUUID();
   lesson.status = "under_review";
   lesson.version = 1;
@@ -146,12 +223,11 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
   );
   const edited = structuredClone(result.lesson);
   const previousText = edited.vocabulary[0].traditional;
-  edited.vocabulary[0].traditional = "新詞語";
-  edited.module = undefined;
-  edited.exercises = edited.exercises.filter((e) => e.prompt !== previousText);
-  edited.vocabulary = edited.vocabulary.filter(
-    (v, i) => i === 0 || v.traditional !== previousText,
-  );
+  edited.vocabulary[0] = {
+    ...edited.vocabulary[0],
+    traditional: "新詞語",
+    example: "新詞語",
+  };
   assert.equal(
     retainedAudio(edited, result.lesson).some((c) => c.text === previousText),
     false,

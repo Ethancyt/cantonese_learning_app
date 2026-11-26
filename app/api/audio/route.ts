@@ -5,6 +5,10 @@ import { readClip } from "@/lib/server/lesson-audio";
 import { lessonAudioTexts } from "@/lib/lesson-audio";
 import { readSettings } from "@/lib/server/settings";
 import { listeningAudio } from "@/lib/server/listening-audio";
+import {
+  isPublicWorkshopAudio,
+  workshopListeningAudio,
+} from "@/lib/server/workshop-audio";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
@@ -86,7 +90,9 @@ export async function POST(req: NextRequest) {
         { available: false },
         { headers: { "Cache-Control": "no-store" } },
       );
-    const bytes = await listeningAudio(text, settings);
+    const bytes = isPublicWorkshopAudio(lesson.id, lesson.version, text)
+      ? await workshopListeningAudio(text, settings, req.nextUrl.origin)
+      : await listeningAudio(text, settings, req.nextUrl.origin);
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "audio/mpeg",

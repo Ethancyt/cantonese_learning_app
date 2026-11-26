@@ -106,6 +106,36 @@ test(
         JSON.stringify(feedback.body),
         /test-only-pronunciation-key|forged-client-target/,
       );
+      const visitorCheck = (body: FormData, origin = base!) =>
+        fetch(base + "/api/workshop-pronunciation", {
+          method: "POST",
+          headers: { Origin: origin },
+          body,
+        });
+      const visitor = await visitorCheck(recording());
+      assert.equal(visitor.status, 200);
+      assert.equal(visitor.headers.get("Cache-Control"), "no-store");
+      const visitorFeedback = await visitor.json();
+      assert.equal(visitorFeedback.expected, exercise.answer);
+      assert.equal(visitorFeedback.assessment.overall, 90);
+      const visitorWrongWorkshop = recording();
+      visitorWrongWorkshop.set("lessonId", "private-workshop");
+      assert.equal((await visitorCheck(visitorWrongWorkshop)).status, 400);
+      const visitorWrongVersion = recording();
+      visitorWrongVersion.set("version", "9999");
+      assert.equal((await visitorCheck(visitorWrongVersion)).status, 400);
+      assert.equal(
+        (await visitorCheck(recording(), "https://example.com")).status,
+        403,
+      );
+      const visitorOversized = recording();
+      visitorOversized.set(
+        "audio",
+        new File([new Uint8Array(1024 * 1024)], "large.wav", {
+          type: "audio/wav",
+        }),
+      );
+      assert.equal((await visitorCheck(visitorOversized)).status, 413);
       const wrongVersion = recording();
       wrongVersion.set("version", "9999");
       assert.equal((await call("/api/transcribe", wrongVersion)).status, 400);
@@ -152,6 +182,21 @@ test(
       const replay = await call("/api/audio", voiceRequest);
       assert.equal(replay.status, 200);
       assert.equal(replay.body.audioBytes, voice.body.audioBytes);
+      const publicClip = await fetch(
+        base +
+          `/api/workshop-audio?${new URLSearchParams({ text: word.traditional })}`,
+      );
+      assert.equal(publicClip.status, 200);
+      assert.equal(publicClip.headers.get("Content-Type"), "audio/mpeg");
+      assert.equal(
+        (await publicClip.arrayBuffer()).byteLength,
+        voice.body.audioBytes,
+      );
+      const unknownClip = await fetch(
+        base +
+          `/api/workshop-audio?${new URLSearchParams({ text: "未授權的新句子" })}`,
+      );
+      assert.equal(unknownClip.status, 404);
       assert.equal(
         (await call("/api/audio", { ...voiceRequest, text: "未授權的新句子" }))
           .status,

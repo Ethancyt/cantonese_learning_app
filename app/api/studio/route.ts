@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { analyze, generate, grounded } from "@/lib/ai/lesson-generator";
 import { analysisSchema, lessonSchema } from "@/lib/schema";
-import { extract, sourceFromText } from "@/lib/server/extraction";
+import {
+  extract,
+  sourceFromPdfPages,
+  sourceFromText,
+} from "@/lib/server/extraction";
 import {
   identity,
   requireVolunteer,
@@ -19,26 +23,46 @@ import {
 import { retainedAudio } from "@/lib/lesson-audio";
 import { generateLessonAudio } from "@/lib/server/lesson-audio";
 import { withLessonLock } from "@/lib/server/lesson-lock";
+import { isArchivedSource } from "@/lib/content/retired-content";
+import {
+  studioTextLimit,
+  studioUploadLimitBytes,
+  studioUploadSizeError,
+} from "@/lib/studio-upload";
 export const runtime = "nodejs";
 export const maxDuration = 90;
+// Allow multipart headers and the form fields in addition to the file.
+const multipartLimit = studioUploadLimitBytes + 1024 * 1024;
 export async function POST(req: NextRequest) {
   try {
     const user = await identity(req);
     requireVolunteer(user);
     if (req.headers.get("content-type")?.includes("multipart/form-data")) {
       guard(req, user.id, 15);
-      if (Number(req.headers.get("content-length") || 0) > 6 * 1024 * 1024)
-        throw new Error("File is too large.");
+      if (Number(req.headers.get("content-length") || 0) > multipartLimit)
+        throw new Error(studioUploadSizeError);
       const form = await req.formData();
       const file = form.get("file");
+      const pdfPages = form.get("pdfPages");
+      const filename = String(form.get("filename") || "Pasted workshop");
+      // JSON escapes can occupy up to six characters per input character.
+      if (
+        typeof pdfPages === "string" &&
+        pdfPages.length > studioTextLimit * 6 + 1024
+      )
+        throw new Error(
+          "Please split the workshop into smaller documents (60,000 characters maximum).",
+        );
       const source =
         file instanceof File
           ? await extract(file, user.id)
-          : sourceFromText(
-              String(form.get("filename") || "Pasted workshop"),
-              String(form.get("text") || ""),
-              user.id,
-            );
+          : typeof pdfPages === "string"
+            ? sourceFromPdfPages(
+                filename,
+                z.array(z.string()).parse(JSON.parse(pdfPages)),
+                user.id,
+              )
+            : sourceFromText(filename, String(form.get("text") || ""), user.id);
       const result = await analyze(source);
       await saveSource(user.client, source);
       return NextResponse.json({ source, ...result });
@@ -54,6 +78,7 @@ export async function POST(req: NextRequest) {
       const source = db.sources.find(
         (s) =>
           s.id === b.sourceId &&
+          !isArchivedSource(s) &&
           (s.createdBy === user.id || user.role === "admin"),
       );
       if (!source) throw new Error("Source not found.");
@@ -87,15 +112,21 @@ export async function POST(req: NextRequest) {
       const source = db.sources.find(
         (s) =>
           s.id === b.sourceId &&
+          !isArchivedSource(s) &&
           (s.createdBy === user.id || user.role === "admin"),
       );
       if (!source) throw new Error("Source not found.");
       const analysis = grounded(analysisSchema.parse(b.analysis), source);
+      const archivedLessons = new Set(
+        db.lessons.filter((l) => l.status === "archived").map((l) => l.id),
+      );
       const result = await generate(
         source,
         analysis,
         settings,
-        db.versions.filter((l) => l.status === "published"),
+        db.versions.filter(
+          (l) => l.status === "published" && !archivedLessons.has(l.id),
+        ),
       );
       result.lesson.audio = [];
       await saveLesson(user.client, result.lesson);

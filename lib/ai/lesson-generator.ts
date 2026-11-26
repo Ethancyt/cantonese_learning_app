@@ -9,7 +9,11 @@ import {
 } from "../schema";
 import { makeExercises } from "../seeds";
 import { provider } from "./provider";
-import { normalizeAIProvenance } from "./provenance";
+import {
+  comparisonText,
+  invalidActivitySource,
+  normalizeAIProvenance,
+} from "./provenance";
 import { completeLessonResponse } from "./lesson-response";
 import { validatedAI } from "./validated";
 function promptSource(source: Source) {
@@ -19,19 +23,31 @@ function promptSource(source: Source) {
     chunks: source.chunks,
   };
 }
+function vocabularySource(source: Source) {
+  const chunks = source.chunks.map((chunk) => ({
+    chunk,
+    text: comparisonText(chunk.text),
+  }));
+  return (word: string) => {
+    const text = comparisonText(word);
+    if (!text) return undefined;
+    return chunks.find((entry) => entry.text.includes(text))?.chunk;
+  };
+}
+
 function groundedAnalysisSchema(source: Source) {
-  return analysisSchema.superRefine((analysis, ctx) => {
-    for (const [index, vocabulary] of analysis.vocabulary.entries())
-      if (
-        !source.chunks.some((chunk) =>
-          chunk.text.includes(vocabulary.traditional),
-        )
-      )
-        ctx.addIssue({
-          code: "custom",
-          path: ["vocabulary", index, "traditional"],
-          message: "Vocabulary is not grounded in the workshop source.",
-        });
+  const findChunk = vocabularySource(source);
+  return analysisSchema.transform((analysis, ctx) => {
+    const vocabulary = analysis.vocabulary.filter((word) =>
+      findChunk(word.traditional),
+    );
+    if (!vocabulary.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["vocabulary"],
+        message: "Vocabulary is not grounded in the workshop source.",
+      });
+    return { ...analysis, vocabulary };
   });
 }
 export function grounded(
@@ -39,10 +55,13 @@ export function grounded(
   source: Source,
   generatedByAI = false,
 ) {
+  const findChunk = vocabularySource(source);
   for (const v of analysis.vocabulary) {
-    const chunk = source.chunks.find((c) => c.text.includes(v.traditional));
+    const chunk = findChunk(v.traditional);
     if (!chunk)
-      throw new Error("Vocabulary is not grounded in the workshop source.");
+      throw new Error(
+        "Vocabulary is not grounded in the workshop source. Use the Traditional Chinese wording from your material or remove the edited entry.",
+      );
     v.provenance = {
       sourceMaterialId: source.id,
       sourceChunk: chunk.index,
@@ -184,6 +203,25 @@ export async function generate(
     );
   let lesson: Lesson;
   if (ai) {
+    const generatedLessonSchema = lessonSchema.superRefine((draft, ctx) => {
+      draft.exercises.forEach((exercise, index) => {
+        const p = exercise.provenance;
+        if (
+          !p ||
+          p.sourceMaterialId !== source.id ||
+          !comparisonText(p.sourceExcerpt) ||
+          !source.chunks.some(
+            (c) =>
+              c.index === p.sourceChunk && c.text.includes(p.sourceExcerpt),
+          )
+        )
+          ctx.addIssue({
+            code: "custom",
+            path: ["exercises", index, "provenance"],
+            message: invalidActivitySource,
+          });
+      });
+    });
     const style = references
       .map((l) => ({
         overlap: l.vocabulary.filter((v) =>
@@ -269,7 +307,7 @@ export async function generate(
           },
         },
       },
-      lessonSchema,
+      generatedLessonSchema,
       (response) =>
         completeLessonResponse(response, source, analysis, settings, id, now),
       "lesson",
@@ -323,11 +361,11 @@ export async function generate(
     lesson = lessonSchema.parse({
       id,
       title: "Your workshop practice",
-      title_zh: source.filename.includes("茶餐廳") ? "去茶餐廳" : "工作坊練習",
+      title_zh: "工作坊練習",
       description: "A little practice made from your workshop material.",
       level: settings.level,
       estimated_minutes: settings.minutes,
-      icon: source.filename.includes("茶餐廳") ? "☕" : "📚",
+      icon: "📚",
       topic: "Workshop practice",
       workshop: source.filename,
       availability: "available",
@@ -365,15 +403,6 @@ export async function generate(
   for (const e of lesson.exercises) {
     if (!settings.types.includes(e.type) || !exerciseTypes.includes(e.type))
       throw new Error("The provider returned an unselected exercise type.");
-    const p = e.provenance;
-    if (
-      !p ||
-      p.sourceMaterialId !== source.id ||
-      !source.chunks.some(
-        (c) => c.index === p.sourceChunk && c.text.includes(p.sourceExcerpt),
-      )
-    )
-      throw new Error("Generated activity needs verified source provenance.");
   }
   return {
     lesson: lessonSchema.parse(structureWorkshop(lesson, analysis)),

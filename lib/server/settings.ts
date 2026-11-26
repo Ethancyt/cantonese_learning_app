@@ -196,6 +196,20 @@ export async function readSettings(): Promise<Settings> {
     (stored.aiKey || process.env.AI_API_KEY
       ? "https://api.openai.com/v1"
       : "https://openrouter.ai/api/v1");
+  const azureSpeechKey = process.env.AZURE_SPEECH_KEY?.trim() || "";
+  const azureSpeechRegion =
+    process.env.AZURE_SPEECH_REGION?.trim() || "eastasia";
+  const speechProvider =
+    process.env.SPEECH_PROVIDER === "azure"
+      ? "azure"
+      : process.env.SPEECH_PROVIDER === "compatible" ||
+          (!stored.speechProvider &&
+            (stored.speechUrl ||
+              stored.speechKey ||
+              process.env.SPEECH_API_URL ||
+              process.env.SPEECH_API_KEY))
+        ? "compatible"
+        : "azure";
   const settings: Record<string, unknown> = {
     mode: process.env.APP_MODE === "supabase" ? "supabase" : "demo",
     aiUrl,
@@ -205,29 +219,23 @@ export async function readSettings(): Promise<Settings> {
         ? "openai/gpt-4.1-mini"
         : "gpt-4o-mini"),
     aiKey: process.env.AI_API_KEY || "",
-    speechProvider:
-      process.env.SPEECH_PROVIDER === "azure"
-        ? "azure"
-        : process.env.SPEECH_PROVIDER === "compatible" ||
-            (!stored.speechProvider &&
-              (stored.speechUrl ||
-                stored.speechKey ||
-                process.env.SPEECH_API_URL ||
-                process.env.SPEECH_API_KEY))
-          ? "compatible"
-          : "azure",
-    speechRegion: process.env.SPEECH_REGION || "eastasia",
+    speechProvider,
+    speechRegion: process.env.SPEECH_REGION || azureSpeechRegion,
     speechUrl:
       process.env.SPEECH_API_URL ||
       "https://api.openai.com/v1/audio/transcriptions",
     speechModel: process.env.SPEECH_MODEL || "whisper-1",
-    speechKey: process.env.SPEECH_API_KEY || "",
+    speechKey:
+      process.env.SPEECH_API_KEY ||
+      ((stored.speechProvider ?? speechProvider) === "azure"
+        ? azureSpeechKey
+        : ""),
     ttsProvider: "azure",
     ttsUrl: "https://api.openai.com/v1/audio/speech",
     ttsModel: "gpt-4o-mini-tts",
     ttsVoice: "alloy",
-    ttsKey: "",
-    azureRegion: "eastasia",
+    ttsKey: (stored.ttsProvider ?? "azure") === "azure" ? azureSpeechKey : "",
+    azureRegion: azureSpeechRegion,
     azureVoice: "zh-HK-HiuMaanNeural",
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",

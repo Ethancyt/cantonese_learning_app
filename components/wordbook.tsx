@@ -7,8 +7,10 @@ import { ExerciseRenderer } from "./exercise-renderer";
 import { Vocabulary, Lesson, Exercise } from "@/lib/schema";
 export function Wordbook() {
   const { data, request, refresh } = useApp();
+  const canSave = !!data && data.role !== "visitor";
   const [filter, setFilter] = useState("All words"),
     [saved, setSaved] = useState<string[]>([]),
+    [olderVocabulary, setOlderVocabulary] = useState<Vocabulary[]>([]),
     [review, setReview] = useState<
       { lesson: Lesson; exercise: Exercise }[] | null
     >(null),
@@ -22,8 +24,28 @@ export function Wordbook() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    setSaved(JSON.parse(localStorage.getItem("saved-words") || "[]"));
-  }, []);
+    if (canSave)
+      setSaved(JSON.parse(localStorage.getItem("saved-words") || "[]"));
+  }, [canSave]);
+  useEffect(() => {
+    if (filter !== "Saved" || !saved.length) return;
+    let active = true;
+    Promise.all([import("@/lib/content/modules"), import("@/lib/seeds")])
+      .then(([{ curriculumModules }, { legacySeedLessons }]) => {
+        if (active)
+          setOlderVocabulary(
+            [...legacySeedLessons, ...curriculumModules].flatMap((lesson) =>
+              lesson.vocabulary.filter((word) =>
+                saved.includes(word.traditional),
+              ),
+            ),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [filter, saved]);
   if (!data)
     return (
       <DataBoundary>
@@ -32,7 +54,10 @@ export function Wordbook() {
     );
   const vocabulary = [
     ...new Map(
-      data.lessons.flatMap((l) => l.vocabulary).map((v) => [v.traditional, v]),
+      [
+        ...(filter === "Saved" ? olderVocabulary : []),
+        ...data.lessons.flatMap((l) => l.vocabulary),
+      ].map((v) => [v.traditional, v]),
     ).values(),
   ];
   const words = vocabulary.filter(
@@ -188,7 +213,10 @@ export function Wordbook() {
         </button>
       </div>
       <div className="filter-row">
-        {["All words", "Needs practice", "Saved"].map((f) => (
+        {(canSave
+          ? ["All words", "Needs practice", "Saved"]
+          : ["All words", "Needs practice"]
+        ).map((f) => (
           <button
             className={filter === f ? "selected" : ""}
             key={f}
@@ -216,25 +244,27 @@ export function Wordbook() {
               <div className="card-progress">
                 <div style={{ width: `${m?.score || 0}%` }} />
               </div>
-              <button
-                className="text-link icon-btn"
-                onClick={() => {
-                  const next = saved.includes(v.traditional)
-                    ? saved.filter((w) => w !== v.traditional)
-                    : [...saved, v.traditional];
-                  setSaved(next);
-                  localStorage.setItem("saved-words", JSON.stringify(next));
-                }}
-              >
-                {saved.includes(v.traditional) ? (
-                  <Check size={13} />
-                ) : (
-                  <Bookmark size={13} />
-                )}{" "}
-                {saved.includes(v.traditional)
-                  ? "Saved on this device"
-                  : "Save word"}
-              </button>
+              {canSave && (
+                <button
+                  className="text-link icon-btn"
+                  onClick={() => {
+                    const next = saved.includes(v.traditional)
+                      ? saved.filter((w) => w !== v.traditional)
+                      : [...saved, v.traditional];
+                    setSaved(next);
+                    localStorage.setItem("saved-words", JSON.stringify(next));
+                  }}
+                >
+                  {saved.includes(v.traditional) ? (
+                    <Check size={13} />
+                  ) : (
+                    <Bookmark size={13} />
+                  )}{" "}
+                  {saved.includes(v.traditional)
+                    ? "Saved on this device"
+                    : "Save word"}
+                </button>
+              )}
             </div>
           );
         })}

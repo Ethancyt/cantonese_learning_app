@@ -1,3 +1,14 @@
+export const invalidActivitySource =
+  "Generated activity needs verified source provenance.";
+
+export function comparisonText(text: string) {
+  return text
+    .normalize("NFC")
+    .replace(/[\u200B\uFEFF]/gu, "")
+    .replace(/(\p{Script=Han})\s+(?=\p{Script=Han})/gu, "$1")
+    .trim();
+}
+
 // Some JSON providers place these fields directly on an entry despite the nested schema.
 // Normalize only this known variation; leave all other fields for strict validation.
 export function normalizeAIProvenance(value: unknown): unknown {

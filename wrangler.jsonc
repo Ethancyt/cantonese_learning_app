@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cantonese-learning-app",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-21",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "keep_vars": true,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    { "binding": "WORKSHOP_AUDIO", "id": "a11a022d75e54e0fb7a1c3b572829d86" }
+  ],
+  "ratelimits": [
+    { "name": "VISITOR_PRONUNCIATION", "namespace_id": "89726", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "cantonese-learning-app"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "previews": {
+    "kv_namespaces": [
+      { "binding": "WORKSHOP_AUDIO", "id": "a11a022d75e54e0fb7a1c3b572829d86" }
+    ],
+    "ratelimits": [
+      { "name": "VISITOR_PRONUNCIATION", "namespace_id": "89727", "simple": { "limit": 20, "period": 60 } }
+    ]
+  }
+}

@@ -10,6 +10,25 @@ import { saveLesson } from "./repository";
 
 const bucket = "lesson-audio";
 const maxBytes = 2 * 1024 * 1024;
+const azureReadings: Record<string, string> = {
+  好高興識你: "hou 2 gou 1 hing 3 sik 1 nei 5",
+  你叫咩名呀: "nei 5 giu 3 me 1 meng 2 aa 3",
+  你姓咩呀: "nei 5 sing 3 me 1 aa 3",
+  你係邊度人呀: "nei 5 hai 6 bin 1 dou 6 jan 4 aa 3",
+  你住喺邊度呀: "nei 5 zyu 6 hai 2 bin 1 dou 6 aa 3",
+  聽日見: "ting 1 jat 6 gin 3",
+  聽日: "ting 1 jat 6",
+  名: "meng 2",
+  呀: "aa 3",
+};
+// Read the workshop questions together. Only override 名 on its own or in
+// the name question, since its reading depends on the surrounding words.
+const readingPattern =
+  /好高興識你|你叫咩名呀|你姓咩呀|你係邊度人呀|你住喺邊度呀|聽日見|聽日|^名$|呀(?=\s*(?:[？?！!。；;，,]|$))/gu;
+
+function azurePhoneme(phrase: string) {
+  return `<phoneme alphabet="sapi" ph="${azureReadings[phrase]}">${phrase}</phoneme>`;
+}
 function xml(text: string) {
   return text.replace(
     /[<>&"']/g,
@@ -39,6 +58,16 @@ export function clipIdentity(text: string, settings: Settings) {
         settings.ttsProvider === "azure"
           ? "ssml-rate-minus-15"
           : settings.ttsModel,
+        // Keep unaffected clips reusable when a teaching pronunciation changes.
+        ...(settings.ttsProvider === "azure"
+          ? [
+              ...new Set(
+                Array.from(text.matchAll(readingPattern), ([phrase]) =>
+                  azurePhoneme(phrase),
+                ),
+              ),
+            ]
+          : []),
       ]),
     )
     .digest("hex");
@@ -75,7 +104,7 @@ export async function synthesize(
               "Content-Type": "application/json",
             },
         body: azure
-          ? `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text)}</prosody></voice></speak>`
+          ? `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-HK"><voice name="${settings.azureVoice}"><prosody rate="-15%">${xml(text).replace(readingPattern, azurePhoneme)}</prosody></voice></speak>`
           : JSON.stringify({
               model: settings.ttsModel,
               voice: settings.ttsVoice,

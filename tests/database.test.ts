@@ -36,7 +36,7 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
   await pg.exec(curriculumSQL());
   assert.equal(
     (await pg.query("select * from learning_modules")).rows.length,
-    4,
+    seedLessons.length,
   );
   assert.equal(
     (await pg.query("select * from module_sections")).rows.length,
@@ -47,7 +47,7 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
   );
   assert.equal(
     (await pg.query("select * from published_versions")).rows.length,
-    5,
+    seedLessons.length + 1,
   );
   assert.deepEqual(
     (
@@ -57,12 +57,21 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
     ).rows[0].payload,
     legacy,
   );
+  assert.equal(
+    (
+      await pg.query<{ status: string }>(
+        "select status from lessons where id='start'",
+      )
+    ).rows[0].status,
+    "archived",
+  );
   const invalid = structuredClone(seedLessons[0]);
   invalid.module!.sections[0].exerciseIds.reverse();
   await assert.rejects(
     () =>
-      pg.query("update lessons set payload=$1 where id='start'", [
+      pg.query("update lessons set payload=$1 where id=$2", [
         JSON.stringify(invalid),
+        invalid.id,
       ]),
     /every activity in order/,
   );
@@ -78,7 +87,7 @@ test("PostgreSQL migration, ownership policies, approval, immutable versions and
   await pg.query("update profiles set role='volunteer' where id=$1", [
     volunteer,
   ]);
-  const lesson = structuredClone(seedLessons[1]);
+  const lesson = structuredClone(seedLessons[0]);
   lesson.id = "db-test";
   lesson.version = 1;
   lesson.createdBy = volunteer;

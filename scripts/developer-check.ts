@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { lessonAudioTexts } from "../lib/lesson-audio";
-import { demoMaterial } from "../lib/seeds";
+import { studioMaterial } from "../tests/helpers/studio-material";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
@@ -332,7 +332,7 @@ async function main() {
       data: { action: "role", role: "volunteer" },
     });
     const uploaded = await context.request.post(base + "/api/studio", {
-      multipart: { filename: "Audio workshop test", text: demoMaterial },
+      multipart: { filename: "Audio workshop test", text: studioMaterial },
     });
     expect(uploaded.ok()).toBe(true);
     const material = await uploaded.json();

@@ -5,6 +5,7 @@ import {
   generationRules,
   type AIProvider,
 } from "./provider";
+import { invalidActivitySource } from "./provenance";
 
 // Share one recovery request (validation or truncation) and one deadline.
 export async function validatedAI<S extends z.ZodTypeAny>(
@@ -62,13 +63,19 @@ export async function validatedAI<S extends z.ZodTypeAny>(
     };
   }
   if (truncated) throw truncated;
+  if (lastIssues.some((issue) => issue.message === invalidActivitySource))
+    throw new Error(
+      "Generated lesson could not verify the source citations after correction. Try again from Choose practice with fewer activity types. Your uploaded material is saved.",
+    );
   if (
     lastIssues.some(
       (issue) =>
         issue.message === "Vocabulary is not grounded in the workshop source.",
     )
   )
-    throw new Error("Vocabulary is not grounded in the workshop source.");
+    throw new Error(
+      "Vocabulary is not grounded in the workshop source. Paste a few Traditional Chinese words or phrases directly from your material and try again.",
+    );
   throw new Error(
     `Generated ${kind} did not pass validation after correction. Try again or choose a different AI model in Developer setup. No draft was published.`,
   );

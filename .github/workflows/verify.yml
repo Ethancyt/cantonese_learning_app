@@ -1,0 +1,112 @@
+name: Verify Cantonese learning app
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Test the app against its production build
+        env:
+          APP_MODE: demo
+          LOCAL_DEVELOPER_SETUP: "true"
+          TEST_BASE_URL: http://localhost:3001
+          TEST_AZURE_BASE_URL: http://localhost:3002
+        run: |
+          DEMO_DATA_DIR="$RUNNER_TEMP/workshop-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/workshop-developer" \
+            node node_modules/next/dist/bin/next start --port 3001 > "$RUNNER_TEMP/workshop-server.log" 2>&1 &
+          DEMO_DATA_DIR="$RUNNER_TEMP/azure-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/azure-developer" \
+            TEST_AZURE_SPEECH_MOCK=true NODE_OPTIONS="--import ./tests/helpers/azure-speech-mock.mjs" \
+            node node_modules/next/dist/bin/next start --port 3002 > "$RUNNER_TEMP/workshop-azure.log" 2>&1 &
+          for url in "$TEST_BASE_URL" "$TEST_AZURE_BASE_URL"; do
+            curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$url/api/config" > /dev/null
+          done
+          npm test
+      - name: Check the learner and Volunteer Studio flows in Chromium
+        env:
+          APP_MODE: demo
+          TEST_BASE_URL: http://localhost:3003
+          TEST_VISITOR_BASE_URL: http://localhost:3004
+        run: |
+          npx playwright install --with-deps chromium
+          DEMO_DATA_DIR="$RUNNER_TEMP/browser-demo" DEVELOPER_DATA_DIR="$RUNNER_TEMP/browser-developer" \
+            node node_modules/next/dist/bin/next start --port 3003 > "$RUNNER_TEMP/workshop-browser.log" 2>&1 &
+          APP_MODE=supabase NEXT_PUBLIC_SUPABASE_URL=https://visitor-test.invalid NEXT_PUBLIC_SUPABASE_ANON_KEY=visitor-test-key \
+            node node_modules/next/dist/bin/next start --port 3004 > "$RUNNER_TEMP/workshop-visitor.log" 2>&1 &
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$TEST_BASE_URL/api/config" > /dev/null
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent "$TEST_VISITOR_BASE_URL/api/config" > /dev/null
+          npm run test:browser
+
+  verify-cloudflare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Verify the Worker's self-reference
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+          assert.equal(
+            config.services.find(({ binding }) => binding === 'WORKER_SELF_REFERENCE')?.service,
+            config.name,
+          );
+          JS
+      - run: npm run build:cloudflare
+      - name: Run Workshop 1 and import a PDF in the Workers runtime
+        run: |
+          npx wrangler dev --ip 127.0.0.1 --port 8787 \
+            --var APP_MODE:demo \
+            --var DEMO_DATA_DIR:/tmp/workshop-demo \
+            --var DEVELOPER_DATA_DIR:/tmp/workshop-developer \
+            > "$RUNNER_TEMP/workshop-worker.log" 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true; cat "$RUNNER_TEMP/workshop-worker.log"' EXIT
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 --silent --show-error \
+            http://127.0.0.1:8787/api/config > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8787/api/data > "$RUNNER_TEMP/workshop-data.json"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const data = JSON.parse(readFileSync(process.env.RUNNER_TEMP + '/workshop-data.json', 'utf8'));
+          assert.equal(data.lessons.find((lesson) => lesson.id === 'workshop-2026-11-13')?.module.romanisation, 'yale');
+          const origin = 'http://127.0.0.1:8787';
+          const role = await fetch(origin + '/api/data', {
+            method: 'POST',
+            headers: { origin, 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'role', role: 'volunteer' }),
+          });
+          assert.equal(role.status, 200, await role.text());
+          const cookie = role.headers.getSetCookie().map((header) => header.split(';')[0]).join('; ');
+          const form = new FormData();
+          form.set('file', new File([readFileSync('sample-materials/classroom-introductions.pdf')], 'classroom-introductions.pdf', { type: 'application/pdf' }));
+          const upload = await fetch(origin + '/api/studio', { method: 'POST', headers: { origin, cookie }, body: form });
+          const result = await upload.json();
+          assert.equal(upload.status, 200, result.error);
+          assert.ok(result.analysis.vocabulary.length > 0);
+          JS

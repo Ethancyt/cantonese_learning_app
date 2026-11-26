@@ -28,6 +28,7 @@ export function Dashboard() {
         <div />
       </DataBoundary>
     );
+  const word = data.lessons[0]?.vocabulary[0];
   const done = (lesson: Lesson) => lessonCompleted(lesson, data.completions);
   const current = lessonToContinue(
     data.lessons,
@@ -45,17 +46,18 @@ export function Dashboard() {
     (section) => nextExercise && section.exerciseIds.includes(nextExercise.id),
   );
   const filtered = data.lessons.filter(
-    (l) =>
-      filter === "All lessons" ||
-      (filter === "From my workshop" && l.createdBy !== "system") ||
-      (filter === "Completed" && done(l)),
+    (l) => filter === "All lessons" || (filter === "Completed" && done(l)),
   );
   return (
     <DataBoundary>
       <div className="page-heading">
         <div>
           <h1>My lessons</h1>
-          <p>Continue your practice or choose a lesson below.</p>
+          <p>
+            {data.role === "visitor"
+              ? "You’re practising as a visitor. Progress resets when you leave the site or reload."
+              : "Continue your practice or choose a lesson below."}
+          </p>
         </div>
       </div>
       <section className="continue-lesson panel" aria-label="Continue lesson">
@@ -174,8 +176,7 @@ export function Dashboard() {
           <div>
             <h2>Your after-class lessons</h2>
             <p>
-              Follow Lessons 1–4 alongside your Cantonese class, then review
-              what you’ve learned.
+              Practise what you learned in your workshop and review your words.
             </p>
           </div>
           <span className="small-label">
@@ -183,7 +184,7 @@ export function Dashboard() {
           </span>
         </div>
         <div className="filter-row" role="group" aria-label="Filter journeys">
-          {["All lessons", "From my workshop", "Completed"].map((f) => (
+          {["All lessons", "Completed"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -206,7 +207,7 @@ export function Dashboard() {
                 <div className="card-art">
                   <span className="card-unit">
                     {l.createdBy === "system"
-                      ? `LESSON ${l.module?.unit || data.lessons.indexOf(l) + 1}`
+                      ? `WORKSHOP ${l.module?.unit || data.lessons.indexOf(l) + 1}`
                       : "YOUR WORKSHOP"}
                   </span>
                   {done(l) && (
@@ -270,24 +271,26 @@ export function Dashboard() {
         )}
       </section>
       <section className="bottom-grid">
-        <div className="word-card panel">
-          <div className="section-heading">
-            <h3>A word to practise</h3>
-            <span className="word-tag">MANNERS</span>
-          </div>
-          <div className="word-detail">
-            <span className="word-symbol">唔該</span>
-            <div>
-              <span className="jyutping">m4 goi1</span>
-              <p>Thank you · Please</p>
+        {word && (
+          <div className="word-card panel">
+            <div className="section-heading">
+              <h3>A word to practise</h3>
             </div>
-            <ListenButton text="唔該" />
+            <div className="word-detail">
+              <span className="word-symbol" lang="zh-HK">
+                {word.traditional}
+              </span>
+              <div>
+                <span className="jyutping">{word.jyutping}</span>
+                <p>{word.english}</p>
+              </div>
+              <ListenButton text={word.traditional} />
+            </div>
+            <Link href="/review" className="text-link">
+              Open my wordbook <ArrowRight size={15} />
+            </Link>
           </div>
-          <p>Little words go a long way. Try it when someone helps you.</p>
-          <Link href="/review" className="text-link">
-            Open my wordbook <ArrowRight size={15} />
-          </Link>
-        </div>
+        )}
         <div className="workshop-note panel">
           <div className="note-icon">
             <Headphones size={24} />
@@ -300,9 +303,12 @@ export function Dashboard() {
               <br />
               Every journey carries a little piece of Hong Kong.
             </p>
-            <Link href="/studio" className="text-link">
-              Visit the Volunteer Studio <ArrowRight size={15} />
-            </Link>
+            {(data.mode === "demo" ||
+              ["volunteer", "admin"].includes(data.role)) && (
+              <Link href="/studio" className="text-link">
+                Visit the Volunteer Studio <ArrowRight size={15} />
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -318,10 +324,15 @@ export function ListenButton({
   lesson?: Lesson;
 }) {
   const { data, auth } = useApp();
+  const visitor = data?.role === "visitor";
+  const phrase = text.trim();
   const source =
     lesson ||
-    data?.lessons.find((l) => l.audio?.some((c) => c.text === text.trim()));
-  const clip = source?.audio?.find((c) => c.text === text.trim());
+    data?.lessons.find((l) => l.audio?.some((c) => c.text === phrase)) ||
+    data?.lessons.find((l) =>
+      l.vocabulary.some((word) => word.traditional === phrase),
+    );
+  const clip = source?.audio?.find((c) => c.text === phrase);
   const [note, setNote] = useState(""),
     [busy, setBusy] = useState(false);
   const saved = useRef<{ audio: HTMLAudioElement; url: string } | null>(null);
@@ -336,7 +347,7 @@ export function ListenButton({
         saved.current = null;
       }
     };
-  }, [source?.id, source?.version, clip?.id, text]);
+  }, [source?.id, source?.version, clip?.id, text, visitor]);
   return (
     <div className="listen-wrap">
       <button
@@ -351,9 +362,10 @@ export function ListenButton({
             try {
               if (!saved.current) {
                 abort.current = new AbortController();
-                const session = auth
-                  ? (await auth.auth.getSession()).data.session
-                  : null;
+                const session =
+                  !visitor && auth
+                    ? (await auth.auth.getSession()).data.session
+                    : null;
                 const query = clip
                   ? new URLSearchParams({
                       lessonId: source.id,
@@ -361,30 +373,34 @@ export function ListenButton({
                       clipId: clip.id,
                     })
                   : null;
-                const response = await fetch(
-                  query ? `/api/audio?${query}` : "/api/audio",
-                  {
-                    method: clip ? "GET" : "POST",
-                    headers: session
-                      ? {
-                          Authorization: `Bearer ${session.access_token}`,
-                          ...(!clip
-                            ? { "Content-Type": "application/json" }
-                            : {}),
-                        }
-                      : !clip
-                        ? { "Content-Type": "application/json" }
-                        : {},
-                    body: clip
-                      ? undefined
-                      : JSON.stringify({
-                          lessonId: source.id,
-                          version: source.version,
-                          text,
-                        }),
-                    signal: abort.current.signal,
-                  },
-                );
+                const response = visitor
+                  ? await fetch(
+                      `/api/workshop-audio?${new URLSearchParams({ text: phrase, version: "3" })}`,
+                      {
+                        signal: abort.current.signal,
+                      },
+                    )
+                  : await fetch(query ? `/api/audio?${query}` : "/api/audio", {
+                      method: clip ? "GET" : "POST",
+                      headers: session
+                        ? {
+                            Authorization: `Bearer ${session.access_token}`,
+                            ...(!clip
+                              ? { "Content-Type": "application/json" }
+                              : {}),
+                          }
+                        : !clip
+                          ? { "Content-Type": "application/json" }
+                          : {},
+                      body: clip
+                        ? undefined
+                        : JSON.stringify({
+                            lessonId: source.id,
+                            version: source.version,
+                            text,
+                          }),
+                      signal: abort.current.signal,
+                    });
                 if (!response.ok) {
                   const error = await response.json().catch(() => ({}));
                   throw new Error(

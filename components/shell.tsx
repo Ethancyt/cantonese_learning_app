@@ -21,6 +21,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false),
     [error, setError] = useState("");
   const studio = path.startsWith("/studio");
+  const visitor = data?.role === "visitor";
+  const demo = data?.mode === "demo";
+  const staff = data?.role === "volunteer" || data?.role === "admin";
   async function change() {
     try {
       if (data?.mode === "demo")
@@ -65,14 +68,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <BookOpen size={20} />
             My wordbook
           </Link>
-          <Link
-            onClick={() => setOpen(false)}
-            className={studio ? "active" : ""}
-            href="/studio"
-          >
-            <SlidersHorizontal size={20} />
-            Volunteer Studio
-          </Link>
+          {(demo || staff) && (
+            <Link
+              onClick={() => setOpen(false)}
+              className={studio ? "active" : ""}
+              href="/studio"
+            >
+              <SlidersHorizontal size={20} />
+              Volunteer Studio
+            </Link>
+          )}
           {(developerAvailable || data?.role === "admin") && (
             <Link
               onClick={() => setOpen(false)}
@@ -85,15 +90,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </nav>
         <div className="sidebar-bottom">
-          <div className="mode-chip">
-            <span />
-            {data?.mode === "supabase" ? "Connected account" : "FYP demo space"}
-          </div>
-          <button className="mode-button" onClick={change} disabled={!data}>
-            {studio ? "Back to student" : "Switch to volunteer"}
-            <ArrowUpRight size={16} />
-          </button>
-          {auth && (
+          {data && (
+            <div className="mode-chip">
+              <span />
+              {visitor
+                ? "Visitor"
+                : demo
+                  ? "FYP demo space"
+                  : "Connected account"}
+            </div>
+          )}
+          {demo && (
+            <button className="mode-button" onClick={change}>
+              {studio ? "Back to student" : "Switch to volunteer"}
+              <ArrowUpRight size={16} />
+            </button>
+          )}
+          {auth && data && !visitor && (
             <button className="mode-button" onClick={() => auth.auth.signOut()}>
               <LogOut size={14} />
               Sign out
@@ -114,23 +127,33 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="breadcrumb">
             {path === "/developer"
               ? "Developer setup"
-              : studio
-                ? "Volunteer Content Studio"
-                : path === "/review"
-                  ? "My wordbook"
-                  : path.startsWith("/journey")
-                    ? "Lesson practice"
-                    : "My lessons"}
+              : path === "/sign-in"
+                ? "Account"
+                : studio
+                  ? "Volunteer Content Studio"
+                  : path === "/review"
+                    ? "My wordbook"
+                    : path.startsWith("/journey")
+                      ? "Lesson practice"
+                      : "My lessons"}
           </div>
           <div className="header-right">
-            <span className="header-streak">
-              <Flame size={16} />
-              {data?.stats.streak || 0}
-              <span>day streak</span>
-            </span>
-            <span className="avatar" aria-label="Account">
-              <UserRound size={18} />
-            </span>
+            {visitor ? (
+              <Link className="text-link" href="/sign-in">
+                Sign in
+              </Link>
+            ) : (
+              <>
+                <span className="header-streak">
+                  <Flame size={16} />
+                  {data?.stats.streak || 0}
+                  <span>day streak</span>
+                </span>
+                <span className="avatar" aria-label="Account">
+                  <UserRound size={18} />
+                </span>
+              </>
+            )}
           </div>
         </header>
         <main>{children}</main>

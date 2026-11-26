@@ -19,7 +19,10 @@ export function lessonAudioTexts(lesson: Lesson): string[] {
       ...s.examples.map((e) => e.traditional),
     ]) || []),
     ...lesson.exercises
-      .filter((e) => ["listen_choose", "speak"].includes(e.type))
+      .filter(
+        (e) =>
+          !e.personalPractice && ["listen_choose", "speak"].includes(e.type),
+      )
       .map(exerciseAudioText),
     ...lesson.exercises.flatMap((e) => [
       ...e.options,

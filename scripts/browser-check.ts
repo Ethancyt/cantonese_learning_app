@@ -1,8 +1,179 @@
 import { chromium, expect } from "@playwright/test";
-import { demoMaterial } from "../lib/seeds";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { studioMaterial } from "../tests/helpers/studio-material";
+import { workshopOne } from "../lib/content/workshop-one";
+import { workshopTwo } from "../lib/content/workshop-two";
+
+async function checkVisitor(
+  browser: Awaited<ReturnType<typeof chromium.launch>>,
+  base: string,
+) {
+  const context = await browser.newContext({ permissions: ["microphone"] });
+  try {
+    const page = await context.newPage();
+    const progressWrites: string[] = [];
+    const submittedAudio: Buffer[] = [];
+    const pronunciationPath = "/api/workshop-pronunciation";
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().startsWith(base + "/api/") &&
+        !request.url().endsWith(pronunciationPath)
+      )
+        progressWrites.push(request.url());
+    });
+    await page.route(base + pronunciationPath, async (route) => {
+      const request = route.request();
+      const upload = await new Response(
+        new Uint8Array(request.postDataBuffer()!),
+        {
+          headers: { "Content-Type": request.headers()["content-type"] },
+        },
+      ).formData();
+      const audio = upload.get("audio");
+      if (!(audio instanceof File))
+        throw new Error("Missing visitor recording.");
+      expect(audio.type).toBe("audio/wav");
+      const wav = Buffer.from(await audio.arrayBuffer());
+      expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
+      expect(wav.readUInt32LE(24)).toBe(16000);
+      expect(wav.readUInt32LE(40)).toBeGreaterThan(0);
+      const word = workshopOne.vocabulary.find(
+        (entry) => entry.id === upload.get("vocabularyId"),
+      );
+      if (!word) throw new Error("Missing the visitor flashcard target.");
+      submittedAudio.push(wav);
+      await route.fulfill({
+        json: {
+          available: true,
+          expected: word.traditional,
+          recognized: word.traditional,
+          message: "Phrase matched.",
+          note: "Pronunciation score",
+          assessment: {
+            overall: 90,
+            accuracy: 91,
+            fluency: 89,
+            completeness: 90,
+            words: [],
+          },
+        },
+      });
+    });
+    await page.goto(base);
+    await expect(page.getByText(/practising as a visitor/)).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Volunteer Studio" }),
+    ).toHaveCount(0);
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await page.getByRole("link", { name: "Back to lessons" }).click();
+
+    await page.locator(`a[href="/journey/${workshopTwo.id}"]`).first().click();
+    await expect(
+      page.getByRole("heading", { name: workshopTwo.title_zh, exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".module-reference a")).toHaveAttribute(
+      "href",
+      workshopTwo.module!.references![0].url,
+    );
+    await page.goto(base);
+
+    const first = workshopOne.module!.sections[0];
+    await page.locator(`a[href="/journey/${workshopOne.id}"]`).first().click();
+    await page.getByRole("button", { name: "Begin my journey" }).click();
+    await page.getByRole("button", { name: "Continue to practice" }).click();
+    await expect(page.getByRole("button", { name: "Save word" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByText(
+        /Check pronunciation sends this recording to Azure Speech/,
+      ),
+    ).toBeVisible();
+    for (let i = 1; i < first.vocabularyIds.length; i++)
+      await page.getByRole("button", { name: "Next word" }).click();
+    await page.getByRole("button", { name: "Start recording" }).click();
+    const stop = page.getByRole("button", { name: "Stop recording" });
+    await expect(stop).toBeVisible();
+    await page.waitForTimeout(600);
+    await stop.click();
+    const replay = page.getByRole("button", { name: "Replay recording" });
+    await replay.click();
+    await expect
+      .poll(() =>
+        page
+          .locator("audio")
+          .evaluate((media) => (media as HTMLAudioElement).currentTime),
+      )
+      .toBeGreaterThan(0);
+    const check = page.getByRole("button", { name: "Check pronunciation" });
+    await check.click();
+    await expect(
+      page.getByRole("heading", { name: "Your pronunciation" }),
+    ).toBeVisible();
+    await check.click();
+    await expect.poll(() => submittedAudio.length).toBe(2);
+    expect(submittedAudio[1]).toEqual(submittedAudio[0]);
+    await page.locator(".exercise-actions .btn").last().click();
+    await expect(page.locator(".feedback")).toBeVisible();
+    await page.getByRole("button", { name: "Record again" }).click();
+    await expect(stop).toBeVisible();
+    await page.waitForTimeout(900);
+    await stop.click();
+    await replay.click();
+    await expect
+      .poll(() =>
+        page
+          .locator("audio")
+          .evaluate((media) => (media as HTMLAudioElement).currentTime),
+      )
+      .toBeGreaterThan(0);
+    await check.click();
+    await expect.poll(() => submittedAudio.length).toBe(3);
+    expect(submittedAudio[2]).not.toEqual(submittedAudio[0]);
+    await page.getByRole("button", { name: "Back to journey map" }).click();
+    await expect(
+      page.getByRole("button", { name: "Continue practice" }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Back to my journeys" }).click();
+    await page.locator(`a[href="/journey/${workshopOne.id}"]`).first().click();
+    await expect(
+      page.getByRole("button", { name: "Continue practice" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "Begin my journey" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => localStorage.getItem("saved-words")),
+    ).toBeNull();
+    expect(progressWrites).toEqual([]);
+
+    await page.goto(base + "/studio");
+    await expect(
+      page.getByRole("heading", { name: "Volunteer access required" }),
+    ).toBeVisible();
+    const blocked = await context.request.post(base + "/api/studio", {
+      data: { action: "generate" },
+    });
+    expect(blocked.status()).toBe(401);
+    const attempt = await context.request.post(base + "/api/data", {
+      data: { action: "attempt" },
+    });
+    expect(attempt.status()).toBe(401);
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
+  const artifacts = process.env.BROWSER_ARTIFACT_DIR || "artifacts";
+  await mkdir(artifacts, { recursive: true });
   const browser = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
+    executablePath: process.env.CHROMIUM_PATH,
     args: [
       "--no-sandbox",
       "--use-fake-device-for-media-stream",
@@ -25,13 +196,11 @@ async function main() {
     page.getByRole("heading", { name: /Your after-class lessons/ }),
   ).toBeVisible();
   await expect(page.locator(".card-unit")).toHaveText([
-    "LESSON 1",
-    "LESSON 2",
-    "LESSON 3",
-    "LESSON 4",
+    "WORKSHOP 1",
+    "WORKSHOP 2",
   ]);
   await page.screenshot({
-    path: "/workspace/artifacts/dashboard-desktop.png",
+    path: path.join(artifacts, "dashboard-desktop.png"),
     fullPage: true,
   });
   const moduleData = await (
@@ -44,10 +213,16 @@ async function main() {
     await expect(
       page.getByRole("heading", { name: lesson.title_zh, exact: true }),
     ).toBeVisible();
-    await expect(page.locator(".module-reference a")).toHaveAttribute(
-      "href",
-      lesson.module.reference.url,
-    );
+    const links = page.locator(".module-reference a");
+    await expect(links).toHaveCount(lesson.module.references.length);
+    for (const [index, reference] of lesson.module.references.entries()) {
+      await expect(links.nth(index)).toHaveAttribute("href", reference.url);
+      const response = await context.request.get(base + reference.url);
+      expect(response.ok()).toBe(true);
+      expect(await response.text()).toContain(
+        lesson.workshop.split(" · ").at(-1),
+      );
+    }
     await expect(page.locator(".module-path-section")).toHaveCount(
       lesson.module.sections.length,
     );
@@ -56,7 +231,7 @@ async function main() {
       await expect(page.locator(".module-teaching h3").first()).toHaveText(
         lesson.module.sections[i].title,
       );
-      if (lesson.id === "introductions" && i === 0) {
+      if (i === 0) {
         await page.setViewportSize({ width: 390, height: 844 });
         await expect
           .poll(() =>
@@ -74,7 +249,7 @@ async function main() {
         )
           throw new Error("Mobile module overflow");
         await page.screenshot({
-          path: "/workspace/artifacts/module-mobile.png",
+          path: path.join(artifacts, "module-mobile.png"),
           fullPage: true,
         });
         await page.setViewportSize({ width: 1440, height: 1000 });
@@ -87,7 +262,7 @@ async function main() {
       );
       await page.getByRole("button", { name: "Back to journey map" }).click();
     }
-    if (lesson.id === "manners") {
+    if (lesson.id === "workshop-2026-11-13") {
       await page.getByRole("button", { name: "Begin my journey" }).click();
       for (const e of lesson.exercises) {
         if (
@@ -168,7 +343,18 @@ async function main() {
               .click();
         } else if (e.type === "fill_blank")
           await page.getByLabel("Your answer", { exact: true }).fill(e.answer);
-        else if (e.type === "speak") {
+        else if (e.personalPractice) {
+          const values = ["Sam", "Ghana", "Sha Tin"];
+          for (const [index, frame] of e.personalPractice.entries()) {
+            await page
+              .getByLabel(frame.label, { exact: true })
+              .fill(values[index]);
+            await expect(
+              page.locator(".dialogue-line").nth(index),
+            ).toContainText(values[index]);
+          }
+          await page.getByRole("button", { name: "I said it aloud" }).click();
+        } else if (e.type === "speak") {
           await page.getByRole("button", { name: "Start recording" }).click();
           await expect(
             page.getByRole("button", { name: "Stop recording" }),
@@ -218,14 +404,29 @@ async function main() {
   await expect(
     page.getByRole("heading", { name: "Your workshop, their next adventure." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Try sample workshop" }).click();
-  await expect(page.getByLabel("Or paste your workshop notes")).toContainText(
-    "奶茶",
+  await expect(page.getByText("Workshop Demo — 茶餐廳")).toHaveCount(0);
+  await page.getByRole("button", { name: "Create practice journey" }).click();
+  await page
+    .locator("#material-file")
+    .setInputFiles("sample-materials/classroom-introductions.pdf");
+  const pdfUpload = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && request.url().endsWith("/api/studio"),
   );
+  await page.getByRole("button", { name: "Find the learning content" }).click();
+  expect((await pdfUpload).postData()).toContain('name="pdfPages"');
+  await expect(
+    page.getByRole("heading", { name: "Here’s what your workshop contains." }),
+  ).toBeVisible();
+  await expect(page.getByText(/page 1/).first()).toBeVisible();
+  await page
+    .getByRole("button", { name: /Back to Studio · unsaved edits/ })
+    .click();
+  await page.getByRole("button", { name: "Create practice journey" }).click();
   await page.locator("#material-file").setInputFiles({
-    name: "Workshop Demo — 茶餐廳.txt",
+    name: "Example workshop upload.txt",
     mimeType: "text/plain",
-    buffer: Buffer.from(demoMaterial),
+    buffer: Buffer.from(studioMaterial),
   });
   await page.getByRole("button", { name: "Find the learning content" }).click();
   await expect(
@@ -241,7 +442,13 @@ async function main() {
   ).toBeVisible();
   await page
     .getByLabel("Instruction", { exact: true })
-    .fill("Explore our café workshop words");
+    .fill("Explore our workshop words");
+  await page.getByText("Review module teaching and context").click();
+  await page.getByRole("button", { name: "Add reference link" }).click();
+  await page.getByLabel("Reference title").fill("Class reading");
+  await page
+    .getByLabel("Learner-accessible HTTPS link")
+    .fill("https://example.com/class-notes.pdf");
   await page.getByRole("button", { name: "Ready to review & publish" }).click();
   await expect(
     page.getByRole("button", { name: "Publish to students" }),
@@ -253,18 +460,21 @@ async function main() {
   ).toBeEnabled();
   await page.getByRole("button", { name: "Publish to students" }).click();
   await expect(
-    page.getByRole("heading", { name: "去茶餐廳 is live." }),
+    page.getByRole("heading", { name: "工作坊練習 is live." }),
   ).toBeVisible();
   await page.screenshot({
-    path: "/workspace/artifacts/studio-published.png",
+    path: path.join(artifacts, "studio-published.png"),
     fullPage: true,
   });
   await page.getByRole("link", { name: "View student journey" }).click();
+  await expect(
+    page.getByRole("link", { name: /Class reading/ }),
+  ).toHaveAttribute("href", "https://example.com/class-notes.pdf");
   await page.getByRole("button", { name: "Begin my journey" }).click();
   const response = await context.request.get(base + "/api/data");
   const data = await response.json();
   const lesson = data.lessons
-    .filter((l: any) => l.title_zh === "去茶餐廳")
+    .filter((l: any) => l.title_zh === "工作坊練習")
     .at(-1);
   for (const e of lesson.exercises) {
     if (
@@ -374,7 +584,7 @@ async function main() {
   )
     throw new Error("Mobile horizontal overflow");
   await page.screenshot({
-    path: "/workspace/artifacts/dashboard-mobile.png",
+    path: path.join(artifacts, "dashboard-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Open navigation" }).click();
@@ -389,13 +599,19 @@ async function main() {
   )
     throw new Error("Mobile studio overflow");
   await page.screenshot({
-    path: "/workspace/artifacts/studio-mobile.png",
+    path: path.join(artifacts, "studio-mobile.png"),
     fullPage: true,
   });
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(
-    "Browser demonstration passed: edit, approval gate, publication, all 10 exercises, roleplay, completion, review, and mobile navigation.",
+    "Browser checks passed: Workshop 1, personal practice, references, Studio publication, review and mobile navigation.",
   );
+  if (process.env.TEST_VISITOR_BASE_URL) {
+    await checkVisitor(browser, process.env.TEST_VISITOR_BASE_URL);
+    console.log(
+      "Visitor browser checks passed: default access, temporary progress, sign-in and Studio restrictions.",
+    );
+  }
   await browser.close();
 }
 main().catch((e) => {

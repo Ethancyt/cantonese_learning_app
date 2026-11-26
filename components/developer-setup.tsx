@@ -740,7 +740,7 @@ export function DeveloperSetup() {
               <div>
                 <h2>Prepare your learning database</h2>
                 <p>
-                  Install the app tables, access rules, and four modules
+                  Install the app tables, access rules, and workshop lessons
                   directly from this page. Existing app data is preserved.
                 </p>
               </div>

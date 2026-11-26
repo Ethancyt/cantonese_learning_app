@@ -7,13 +7,36 @@ import { seedLessons } from "../lib/seeds";
 import { exerciseVocabulary, speakingTarget } from "../lib/speaking-target";
 import { lessonAudioTexts } from "../lib/lesson-audio";
 import { listeningAudio } from "../lib/server/listening-audio";
+import {
+  isPublicWorkshopAudio,
+  publicWorkshopAudioTexts,
+} from "../lib/server/workshop-audio";
 import { readSettings } from "../lib/server/settings";
+
+test("public Workshop 2 audio is scoped to its published vocabulary and version", () => {
+  const [first, second] = seedLessons;
+  const recording = "一杯凍奶茶，少甜少冰。";
+  assert.ok(publicWorkshopAudioTexts.has(recording));
+  assert.ok(isPublicWorkshopAudio(second.id, second.version, recording));
+  assert.equal(
+    isPublicWorkshopAudio(first.id, first.version, recording),
+    false,
+  );
+  assert.equal(
+    isPublicWorkshopAudio(second.id, second.version + 1, recording),
+    false,
+  );
+  assert.equal(publicWorkshopAudioTexts.has("未發佈"), false);
+});
 
 test("existing courses authorize card pronunciation only for the displayed section vocabulary", () => {
   for (const lesson of seedLessons) {
     for (const exercise of lesson.exercises) {
       if (exercise.type === "speak") {
-        assert.equal(speakingTarget(lesson, exercise.id), exercise.answer);
+        assert.equal(
+          speakingTarget(lesson, exercise.id),
+          exercise.personalPractice ? null : exercise.answer,
+        );
       } else if (exercise.type === "flashcard") {
         const words = exerciseVocabulary(lesson, exercise);
         assert.ok(words.length);
@@ -98,4 +121,86 @@ test("lesson voice cache reuses phrases, merges simultaneous requests, and respe
     azureVoice: "zh-HK-WanLungNeural",
   });
   assert.equal(calls, 2);
+});
+
+test("Workers reuse cached listening clips and synthesize when the cache is unavailable", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const cacheDescriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (cacheDescriptor)
+      Object.defineProperty(globalThis, "caches", cacheDescriptor);
+    else Reflect.deleteProperty(globalThis, "caches");
+  });
+  const clips = new Map<string, Response>();
+  const cache = {
+    async match(request: Request) {
+      return clips.get(request.url)?.clone();
+    },
+    async put(request: Request, response: Response) {
+      clips.set(request.url, response.clone());
+    },
+  };
+  const storage = {
+    async open(name: string) {
+      assert.equal(name, "cantonese-listening-audio");
+      return cache;
+    },
+  };
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: storage,
+  });
+  const settings = {
+    ...(await readSettings()),
+    ttsProvider: "azure" as const,
+    ttsKey: "test-worker-key",
+  };
+  const bytes = Buffer.alloc(128);
+  bytes.write("ID3");
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response(bytes, { headers: { "Content-Type": "audio/mpeg" } });
+  };
+  const origin = "https://cantonese-preview.example";
+  assert.deepEqual(await listeningAudio("你好", settings, origin), bytes);
+  assert.deepEqual(await listeningAudio("你好", settings, origin), bytes);
+  assert.equal(calls, 1);
+  assert.match(
+    [...clips.keys()][0],
+    /^https:\/\/cantonese-preview\.example\/__listening_audio_cache\//,
+  );
+
+  storage.open = async () => {
+    throw new Error("Cache unavailable");
+  };
+  assert.deepEqual(await listeningAudio("早晨", settings, origin), bytes);
+  assert.equal(calls, 2);
+
+  const shared = new Map<string, ArrayBuffer>();
+  const binding = {
+    async get(key: string) {
+      return shared.get(key) ?? null;
+    },
+    async put(key: string, audio: ArrayBuffer) {
+      shared.set(key, audio);
+    },
+  };
+  assert.deepEqual(
+    await listeningAudio("早晨", settings, origin, binding),
+    bytes,
+  );
+  assert.equal(shared.size, 1);
+  assert.equal(calls, 3);
+  assert.deepEqual(
+    await listeningAudio(
+      "早晨",
+      settings,
+      "https://learncantonese.app",
+      binding,
+    ),
+    bytes,
+  );
+  assert.equal(calls, 3, "the shared clip survives an edge-cache miss");
 });
