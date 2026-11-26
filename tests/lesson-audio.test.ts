@@ -98,7 +98,7 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     calls[2].body,
     /<phoneme alphabet="sapi" ph="ting 1 jat 6 gin 3">聽日見<\/phoneme>！<phoneme alphabet="sapi" ph="ting 1 jat 6">聽日<\/phoneme>你去邊度<phoneme alphabet="sapi" ph="aa 3">呀<\/phoneme>？/,
   );
-  const previousAzureClip = (text: string) =>
+  const previousAzureClip = (text: string, ...overrides: string[]) =>
     createHash("sha256")
       .update(
         JSON.stringify([
@@ -108,6 +108,7 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
           azure.azureRegion,
           azure.azureVoice,
           "ssml-rate-minus-15",
+          ...overrides,
         ]),
       )
       .digest("hex");
@@ -116,11 +117,48 @@ test("lesson audio escapes Azure SSML, stores reusable clips, resumes failures a
     previousAzureClip("好高興識你"),
   );
   assert.equal(clipIdentity("你好", azure), previousAzureClip("你好"));
-  for (const corrected of ["聽日見", "呀？", "你叫咩名呀？"])
+  for (const corrected of ["聽日見", "呀？"])
     assert.notEqual(
       clipIdentity(corrected, azure),
       previousAzureClip(corrected),
     );
+  const workshopQuestions = {
+    "你叫咩名呀？": "nei 5 giu 3 me 1 meng 2 aa 3",
+    "你姓咩呀？": "nei 5 sing 3 me 1 aa 3",
+    "你係邊度人呀？": "nei 5 hai 6 bin 1 dou 6 jan 4 aa 3",
+    "你住喺邊度呀？": "nei 5 zyu 6 hai 2 bin 1 dou 6 aa 3",
+  };
+  assert.deepEqual(
+    lessonAudioTexts(seedLessons[0])
+      .filter((text) => text !== "呀？" && text.endsWith("呀？"))
+      .sort(),
+    Object.keys(workshopQuestions).sort(),
+  );
+  for (const [question, reading] of Object.entries(workshopQuestions)) {
+    await synthesize(question, azure);
+    assert.ok(
+      calls
+        .at(-1)
+        ?.body.includes(
+          `<phoneme alphabet="sapi" ph="${reading}">${question.slice(0, -1)}</phoneme>？`,
+        ),
+    );
+    assert.notEqual(
+      clipIdentity(question, azure),
+      previousAzureClip(
+        question,
+        '<phoneme alphabet="sapi" ph="aa 3">呀</phoneme>',
+      ),
+    );
+  }
+  await synthesize("名", azure);
+  assert.ok(
+    calls
+      .at(-1)
+      ?.body.includes('<phoneme alphabet="sapi" ph="meng 2">名</phoneme>'),
+  );
+  assert.notEqual(clipIdentity("名", azure), previousAzureClip("名"));
+  assert.equal(clipIdentity("有名", azure), previousAzureClip("有名"));
   await saveSettings({
     ttsProvider: "compatible",
     ttsKey: "private-compatible-key",

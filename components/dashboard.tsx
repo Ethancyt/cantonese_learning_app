@@ -375,7 +375,7 @@ export function ListenButton({
                   : null;
                 const response = visitor
                   ? await fetch(
-                      `/api/workshop-audio?${new URLSearchParams({ text: phrase, version: "2" })}`,
+                      `/api/workshop-audio?${new URLSearchParams({ text: phrase, version: "3" })}`,
                       {
                         signal: abort.current.signal,
                       },
